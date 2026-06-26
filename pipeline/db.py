@@ -35,6 +35,8 @@ def connect():
         con = duckdb.connect(LOCAL_PATH)
         where = f"local:{LOCAL_PATH}"
     con.execute(SCHEMA)
+    # 기존 games 테이블 마이그레이션(멱등) — 태그 컬럼 추가
+    con.execute("ALTER TABLE games ADD COLUMN IF NOT EXISTS tags TEXT")
     return con, where
 
 

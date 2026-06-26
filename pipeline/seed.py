@@ -52,6 +52,21 @@ def main():
     """)
     print("  interactions:", con.execute("SELECT COUNT(*) FROM interactions").fetchone()[0])
 
+    print("[reviews] 리뷰 본문 이관(텍스트 포함)... (대용량 업로드, 시간 소요)")
+    con.execute(f"""
+        INSERT INTO reviews(recommendationid,appid,steamid,language,voted_up,
+                            votes_up,weighted_vote_score,playtime_at_review,ts_created,review)
+        SELECT CAST(recommendationid AS BIGINT), appid, CAST(steamid AS BIGINT), language,
+               voted_up, COALESCE(votes_up,0), CAST(weighted_vote_score AS DOUBLE),
+               COALESCE(playtime_at_review,0), timestamp_created, review
+        FROM read_parquet('{REVIEWS}')
+        WHERE recommendationid IS NOT NULL AND steamid IS NOT NULL
+        QUALIFY row_number() OVER (PARTITION BY CAST(recommendationid AS BIGINT)
+                                   ORDER BY timestamp_created DESC) = 1
+        ON CONFLICT(recommendationid) DO NOTHING
+    """)
+    print("  reviews:", con.execute("SELECT COUNT(*) FROM reviews").fetchone()[0])
+
     print("[collection_state] 워터마크 시드(게임별 마지막 리뷰 시각)...")
     con.execute("""
         INSERT INTO collection_state(appid,details_done,last_review_ts,reviews_seeded,updated_at)

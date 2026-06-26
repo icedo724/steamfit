@@ -12,10 +12,25 @@ CREATE TABLE IF NOT EXISTS games (
     genres_en            TEXT,          -- JSON 배열 문자열
     genres_ko            TEXT,
     categories           TEXT,          -- JSON 배열 문자열(언어 무관 코드성)
+    tags                 TEXT,          -- Steam user 태그(JSON 배열) — 스토어 페이지서 수집
     release_date         TEXT,
     price_cents          INTEGER,
     recommendations_total INTEGER,
     updated_at           TIMESTAMP DEFAULT now()
+);
+
+-- 리뷰 본문(콘텐츠/의도 경로·추천이유·속성감성용). interactions와 별개로 텍스트 보관.
+CREATE TABLE IF NOT EXISTS reviews (
+    recommendationid    BIGINT PRIMARY KEY,
+    appid               BIGINT,
+    steamid             BIGINT,
+    language            TEXT,
+    voted_up            BOOLEAN,
+    votes_up            INTEGER,
+    weighted_vote_score DOUBLE,
+    playtime_at_review  INTEGER,
+    ts_created          BIGINT,
+    review              TEXT
 );
 
 -- 행동 신호(협업 임베딩의 핵심). 유저는 게임당 1리뷰 → (steamid,appid) 유일.

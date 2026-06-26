@@ -39,6 +39,22 @@ PER_RUN_CAP = 200    # 이후 증분 실행 시 게임당 상한(보통 그보�
 
 _session = requests.Session()
 _session.headers.update(UA)
+# 연령 게이트 우회(성인 게임 스토어 페이지 태그 접근용)
+_session.cookies.update({"birthtime": "0", "wants_mature_content": "1",
+                         "lastagecheckage": "1-0-1990", "mature_content": "1"})
+
+
+def _fetch_tags(appid):
+    """Steam 스토어 페이지에서 user 태그 추출 (JSON 배열명, 최대 25개)."""
+    import re
+    try:
+        r = _session.get(f"https://store.steampowered.com/app/{appid}/", timeout=20)
+        m = re.search(r"InitAppTagModal\(\s*\d+\s*,\s*(\[.*?\])\s*,", r.text, re.S)
+        if m:
+            return [t["name"] for t in json.loads(m.group(1))][:25]
+    except Exception:
+        pass
+    return []
 
 
 def _get(url, params=None, retries=4):
@@ -116,6 +132,7 @@ def collect_details(con, limit=None):
         if en is None:  # 게임 아님/삭제됨
             con.execute("UPDATE collection_state SET details_done=TRUE, updated_at=now() WHERE appid=?", [appid])
             continue
+        tags = _fetch_tags(appid); time.sleep(DELAY)
         g = (
             appid,
             en.get("name"), (ko or {}).get("name"),
@@ -124,17 +141,18 @@ def collect_details(con, limit=None):
             json.dumps([x["description"] for x in en.get("genres", [])], ensure_ascii=False),
             json.dumps([x["description"] for x in (ko or {}).get("genres", [])], ensure_ascii=False),
             json.dumps([x["description"] for x in en.get("categories", [])], ensure_ascii=False),
+            json.dumps(tags, ensure_ascii=False),
             (en.get("release_date") or {}).get("date"),
             (en.get("price_overview") or {}).get("final"),
             (en.get("recommendations") or {}).get("total"),
         )
         con.execute(
             """INSERT INTO games(appid,name,name_ko,type,is_free,short_desc_en,short_desc_ko,
-                  genres_en,genres_ko,categories,release_date,price_cents,recommendations_total,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,now())
+                  genres_en,genres_ko,categories,tags,release_date,price_cents,recommendations_total,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,now())
                ON CONFLICT(appid) DO UPDATE SET name=excluded.name, name_ko=excluded.name_ko,
                   type=excluded.type, short_desc_en=excluded.short_desc_en, short_desc_ko=excluded.short_desc_ko,
-                  genres_en=excluded.genres_en, genres_ko=excluded.genres_ko,
+                  genres_en=excluded.genres_en, genres_ko=excluded.genres_ko, tags=excluded.tags,
                   recommendations_total=excluded.recommendations_total, updated_at=now()""",
             g,
         )
@@ -151,7 +169,7 @@ def _refresh_one(con, appid):
     ).fetchone()
     last_ts = st[0] or 0
     cap = PER_RUN_CAP if (st and st[1]) else FIRST_CAP
-    cursor, newest, rows = "*", last_ts, []
+    cursor, newest, rows, rev_rows = "*", last_ts, [], []
     while len(rows) < cap:
         r = _get(APPREVIEWS_URL.format(appid=appid),
                  {"json": 1, "num_per_page": 100, "filter": "recent",
@@ -173,6 +191,15 @@ def _refresh_one(con, appid):
             a = rv.get("author", {})
             rows.append((int(a.get("steamid")), appid, bool(rv.get("voted_up")),
                          a.get("playtime_at_review") or 0, ts))
+            try:
+                rev_rows.append((
+                    int(rv.get("recommendationid")), appid, int(a.get("steamid")),
+                    rv.get("language"), bool(rv.get("voted_up")), rv.get("votes_up") or 0,
+                    float(rv.get("weighted_vote_score") or 0.0),
+                    a.get("playtime_at_review") or 0, ts, rv.get("review") or "",
+                ))
+            except (TypeError, ValueError):
+                pass
             newest = max(newest, ts)
         nc = j.get("cursor", cursor)
         if stop or len(revs) < 100 or nc == cursor:
@@ -186,6 +213,14 @@ def _refresh_one(con, appid):
                ON CONFLICT(steamid,appid) DO UPDATE SET voted_up=excluded.voted_up,
                   playtime=excluded.playtime""",
             rows,
+        )
+    if rev_rows:
+        con.executemany(
+            """INSERT INTO reviews(recommendationid,appid,steamid,language,voted_up,
+                  votes_up,weighted_vote_score,playtime_at_review,ts_created,review)
+               VALUES(?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(recommendationid) DO NOTHING""",
+            rev_rows,
         )
     con.execute(
         "UPDATE collection_state SET last_review_ts=?, reviews_seeded=TRUE, updated_at=now() WHERE appid=?",
