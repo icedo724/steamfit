@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steam 게임 추천기 — 점검 리포트</title>
+<style>
+  :root{
+    --bg:#0b1622; --card:#16212e; --card2:#1d2a39; --line:#27384b;
+    --txt:#e7eef6; --sub:#9fb2c6; --accent:#4f9bff; --good:#39d98a; --chip:#22344a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    line-height:1.55;padding:0 0 48px}
+  .wrap{max-width:560px;margin:0 auto;padding:0 16px}
+  header{padding:30px 16px 18px;background:linear-gradient(160deg,#13315c 0%,#0b1622 75%)}
+  header .wrap{padding:0}
+  h1{font-size:1.5rem;margin:0 0 6px;letter-spacing:-.02em}
+  .tag{display:inline-block;font-size:.72rem;color:var(--accent);font-weight:700;
+    letter-spacing:.04em;margin-bottom:10px}
+  .thesis{color:var(--sub);font-size:.92rem}
+  .thesis b{color:var(--txt)}
+  h2{font-size:1.05rem;margin:30px 0 12px;display:flex;align-items:center;gap:8px}
+  h2 .n{font-size:.72rem;background:var(--chip);color:var(--accent);border-radius:6px;
+    padding:2px 7px;font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  .liked{font-size:.85rem;color:var(--sub);margin-bottom:4px}
+  .liked b{color:var(--txt)}
+  .case{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  .case:first-of-type{border-top:none;margin-top:6px;padding-top:0}
+  .ilabel{font-size:.9rem;font-weight:700;margin-bottom:10px}
+  .ilabel .pill{display:inline-block;background:var(--chip);color:var(--good);
+    border-radius:999px;padding:3px 11px;font-size:.82rem;margin-left:2px}
+  .ilabel .none{color:var(--sub);font-weight:600;font-size:.82rem}
+  .rec{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-top:1px solid #1f2d3d}
+  .rec:nth-child(2){border-top:none}
+  .rank{width:20px;color:var(--sub);font-size:.78rem;text-align:right;flex:none}
+  .rname{flex:1;font-size:.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sc{color:var(--sub);font-size:.74rem;font-variant-numeric:tabular-nums;flex:none}
+  .top .rname{color:var(--good);font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}
+  th,td{padding:9px 6px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--sub);font-weight:600;font-size:.76rem}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.win td{color:var(--good);font-weight:700}
+  .badge{display:inline-block;background:rgba(57,217,138,.15);color:var(--good);
+    border-radius:6px;padding:1px 6px;font-size:.7rem;font-weight:700;margin-left:6px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--card2);border-radius:10px;padding:12px}
+  .stat .v{font-size:1.25rem;font-weight:800;letter-spacing:-.02em}
+  .stat .l{font-size:.74rem;color:var(--sub);margin-top:2px}
+  .tech{font-size:.82rem;color:var(--sub)}
+  .tech b{color:var(--txt)}
+  .note{font-size:.74rem;color:var(--sub);margin-top:10px}
+  footer{text-align:center;color:var(--sub);font-size:.74rem;margin-top:28px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="tag">AI 모델 개발 · 임베딩/추천</span>
+  <h1>Steam 게임 추천기</h1>
+  <div class="thesis">Steam 상점 추천은 <b>'취향'</b>만 본다.<br>
+  이건 취향 <b>+ 지금 원하는 '의도(텍스트)'</b>까지 반영한다.</div>
+</div></header>
+
+<div class="wrap">
+
+  <h2><span class="n">DEMO</span> 같은 취향, 다른 의도</h2>
+  <div class="card">
+    <div class="liked">🎮 즐겨한 게임 &nbsp;<b>Portal · Portal 2</b></div>
+
+    <div class="case">
+      <div class="ilabel"><span class="none">① 의도 없음 — 순수 취향(행동) 기반</span></div>
+      <div class="rec top"><div class="rank">1</div><div class="rname">Half-Life 2</div><div class="sc">.923</div></div>
+      <div class="rec"><div class="rank">2</div><div class="rname">Half-Life</div><div class="sc">.905</div></div>
+      <div class="rec"><div class="rank">3</div><div class="rname">Counter-Strike</div><div class="sc">.867</div></div>
+      <div class="rec"><div class="rank">4</div><div class="rname">Counter-Strike: Source</div><div class="sc">.865</div></div>
+      <div class="rec"><div class="rank">5</div><div class="rname">Left 4 Dead</div><div class="sc">.845</div></div>
+      <div class="rec"><div class="rank">6</div><div class="rname">Garry's Mod</div><div class="sc">.844</div></div>
+    </div>
+
+    <div class="case">
+      <div class="ilabel">② <span class="pill">생존 크래프팅</span></div>
+      <div class="rec top"><div class="rank">1</div><div class="rname">Don't Starve</div><div class="sc">.801</div></div>
+      <div class="rec"><div class="rank">2</div><div class="rname">Scrap Mechanic</div><div class="sc">.765</div></div>
+      <div class="rec"><div class="rank">3</div><div class="rname">The Forest</div><div class="sc">.762</div></div>
+      <div class="rec"><div class="rank">4</div><div class="rname">Project Zomboid</div><div class="sc">.752</div></div>
+      <div class="rec"><div class="rank">5</div><div class="rname">Subnautica</div><div class="sc">.748</div></div>
+      <div class="rec"><div class="rank">6</div><div class="rname">The Planet Crafter</div><div class="sc">.740</div></div>
+    </div>
+
+    <div class="case">
+      <div class="ilabel">③ <span class="pill">무서운 호러</span></div>
+      <div class="rec top"><div class="rank">1</div><div class="rname">Outlast</div><div class="sc">.786</div></div>
+      <div class="rec"><div class="rank">2</div><div class="rname">Layers of Fear (2016)</div><div class="sc">.768</div></div>
+      <div class="rec"><div class="rank">3</div><div class="rname">The Forest</div><div class="sc">.764</div></div>
+      <div class="rec"><div class="rank">4</div><div class="rname">Manhunt</div><div class="sc">.758</div></div>
+      <div class="rec"><div class="rank">5</div><div class="rname">Scorn</div><div class="sc">.741</div></div>
+      <div class="rec"><div class="rank">6</div><div class="rname">Visage</div><div class="sc">.736</div></div>
+    </div>
+
+    <div class="case">
+      <div class="ilabel">④ <span class="pill">경쟁 멀티 슈터</span></div>
+      <div class="rec top"><div class="rank">1</div><div class="rname">Squad</div><div class="sc">.797</div></div>
+      <div class="rec"><div class="rank">2</div><div class="rname">Garry's Mod</div><div class="sc">.788</div></div>
+      <div class="rec"><div class="rank">3</div><div class="rname">Counter-Strike</div><div class="sc">.783</div></div>
+      <div class="rec"><div class="rank">4</div><div class="rname">BattleBit Remastered</div><div class="sc">.778</div></div>
+      <div class="rec"><div class="rank">5</div><div class="rname">Day of Defeat: Source</div><div class="sc">.765</div></div>
+      <div class="rec"><div class="rank">6</div><div class="rname">Serious Sam II</div><div class="sc">.762</div></div>
+    </div>
+
+    <div class="note">같은 사람의 취향(Portal)인데, 한 줄 의도로 추천이 Valve 슈터 → 생존 → 호러 → 경쟁슈터로 재편됩니다. 전부 실제 모델 출력.</div>
+  </div>
+
+  <h2><span class="n">평가</span> 알고리즘 사다리</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>방식</th><th class="num">R@10</th><th class="num">R@50</th><th class="num">nDCG@10</th></tr></thead>
+      <tbody>
+        <tr><td>Popularity</td><td class="num">0.002</td><td class="num">0.009</td><td class="num">0.001</td></tr>
+        <tr><td>콘텐츠 임베딩 (사전학습)</td><td class="num">0.032</td><td class="num">0.062</td><td class="num">0.020</td></tr>
+        <tr><td>콘텐츠 임베딩 (대조학습)</td><td class="num">0.068</td><td class="num">0.161</td><td class="num">0.039</td></tr>
+        <tr><td>협업 임베딩 (직접 학습)</td><td class="num">0.164</td><td class="num">0.327</td><td class="num">0.100</td></tr>
+        <tr><td>Co-occurrence (베이스라인)</td><td class="num">0.196</td><td class="num">0.368</td><td class="num">0.124</td></tr>
+        <tr class="win"><td>하이브리드<span class="badge">+13%</span></td><td class="num">0.221</td><td class="num">0.411</td><td class="num">0.140</td></tr>
+      </tbody>
+    </table>
+    <div class="note">leave-one-out · 평가유저 5,000 · 후보 12,000 · seed 고정. 학습 임베딩+협업 신호 앙상블이 강한 베이스라인을 초과.</div>
+  </div>
+
+  <h2><span class="n">규모</span> 데이터 &amp; 학습</h2>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="v">169,597</div><div class="l">게임 (공식 API 수집)</div></div>
+      <div class="stat"><div class="v">1,021만</div><div class="l">리뷰</div></div>
+      <div class="stat"><div class="v">534만</div><div class="l">유저 (협업 신호)</div></div>
+      <div class="stat"><div class="v">400만</div><div class="l">대조학습 양성쌍</div></div>
+    </div>
+    <div class="tech" style="margin-top:14px">
+      <b>수집</b> 공식 Steam Web API 직접 수집 (재개 가능 파이프라인)<br>
+      <b>모델</b> PyTorch 대조학습 임베딩 (item2vec식, dim 256) · RTX 4060 학습<br>
+      <b>스택</b> DuckDB · sentence-transformers · scipy
+    </div>
+  </div>
+
+  <footer>로컬 검증용 정적 리포트 · 추천 결과는 실제 모델 출력</footer>
+</div>
+</body>
+</html>

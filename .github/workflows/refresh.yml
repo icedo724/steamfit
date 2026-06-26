@@ -1,0 +1,31 @@
+name: Steam incremental refresh
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # 매일 03:00 KST (UTC 18:00) 증분 갱신
+  workflow_dispatch:        # 수동 실행 허용
+
+concurrency:
+  group: steam-refresh      # 중복 실행 방지
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Incremental collect (new games + delta reviews → MotherDuck)
+        env:
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: python -m pipeline.collect all --max-games 8000

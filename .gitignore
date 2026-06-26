@@ -1,0 +1,38 @@
+# 비밀키
+.env
+
+# 수집 데이터 (대용량 — 커밋 금지)
+data/raw/
+data/*.parquet
+data/*.db
+data/*.sqlite
+data/reviews/
+
+# 가공 데이터셋 (대용량 — 커밋 금지)
+dataset/*.parquet
+
+# 학습 산출물
+*.npy
+*-model/
+models/
+
+# 로그 · 터널 바이너리 · DuckDB 로컬파일
+*.log
+cloudflared.exe
+data/*.duckdb
+
+# 파이썬
+.venv/
+__pycache__/
+*.pyc
+
+# 벡터 인덱스
+*.faiss
+*.index
+
+# OS
+Thumbs.db
+.DS_Store
+
+# gradio 런타임 산출물
+.gradio/

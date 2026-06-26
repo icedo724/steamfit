@@ -1,0 +1,174 @@
+[
+  {
+    "title": "취향만 (의도 없음)",
+    "intent_ko": "—",
+    "liked": [
+      "Portal",
+      "Portal 2"
+    ],
+    "intent": "",
+    "recs": [
+      {
+        "name": "Half-Life 2",
+        "score": 0.923
+      },
+      {
+        "name": "Half-Life",
+        "score": 0.905
+      },
+      {
+        "name": "Counter-Strike",
+        "score": 0.867
+      },
+      {
+        "name": "Counter-Strike: Source",
+        "score": 0.865
+      },
+      {
+        "name": "Left 4 Dead",
+        "score": 0.845
+      },
+      {
+        "name": "Garry's Mod",
+        "score": 0.844
+      },
+      {
+        "name": "POSTAL 2",
+        "score": 0.836
+      },
+      {
+        "name": "Plants vs. Zombies GOTY Edition",
+        "score": 0.832
+      }
+    ]
+  },
+  {
+    "title": "+ 오픈월드 생존 크래프팅",
+    "intent_ko": "open world survival crafting",
+    "liked": [
+      "Portal",
+      "Portal 2"
+    ],
+    "intent": "open world survival crafting",
+    "recs": [
+      {
+        "name": "Don't Starve",
+        "score": 0.801
+      },
+      {
+        "name": "Scrap Mechanic",
+        "score": 0.765
+      },
+      {
+        "name": "The Forest",
+        "score": 0.762
+      },
+      {
+        "name": "Project Zomboid",
+        "score": 0.752
+      },
+      {
+        "name": "TerraTech",
+        "score": 0.749
+      },
+      {
+        "name": "Subnautica",
+        "score": 0.748
+      },
+      {
+        "name": "SPORE™",
+        "score": 0.745
+      },
+      {
+        "name": "The Planet Crafter",
+        "score": 0.74
+      }
+    ]
+  },
+  {
+    "title": "+ 무서운 호러 분위기",
+    "intent_ko": "scary horror atmospheric",
+    "liked": [
+      "Portal",
+      "Portal 2"
+    ],
+    "intent": "scary horror atmospheric",
+    "recs": [
+      {
+        "name": "Outlast",
+        "score": 0.786
+      },
+      {
+        "name": "Layers of Fear (2016)",
+        "score": 0.768
+      },
+      {
+        "name": "The Forest",
+        "score": 0.764
+      },
+      {
+        "name": "Manhunt",
+        "score": 0.758
+      },
+      {
+        "name": "Umfend",
+        "score": 0.748
+      },
+      {
+        "name": "Call of Cthulhu®: Dark Corners of the Earth",
+        "score": 0.746
+      },
+      {
+        "name": "Scorn",
+        "score": 0.741
+      },
+      {
+        "name": "Visage",
+        "score": 0.736
+      }
+    ]
+  },
+  {
+    "title": "+ 빠른 경쟁 멀티플레이 슈터",
+    "intent_ko": "fast competitive multiplayer shooter",
+    "liked": [
+      "Portal",
+      "Portal 2"
+    ],
+    "intent": "fast competitive multiplayer shooter",
+    "recs": [
+      {
+        "name": "Squad",
+        "score": 0.797
+      },
+      {
+        "name": "Garry's Mod",
+        "score": 0.788
+      },
+      {
+        "name": "Counter-Strike",
+        "score": 0.783
+      },
+      {
+        "name": "BattleBit Remastered",
+        "score": 0.778
+      },
+      {
+        "name": "Day of Defeat: Source",
+        "score": 0.765
+      },
+      {
+        "name": "SPORE™",
+        "score": 0.763
+      },
+      {
+        "name": "Serious Sam II",
+        "score": 0.762
+      },
+      {
+        "name": "Paint the Town Red",
+        "score": 0.757
+      }
+    ]
+  }
+]

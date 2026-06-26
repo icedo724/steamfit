@@ -1,0 +1,4 @@
+# 클라우드 증분 파이프라인 전용(경량) — GitHub Actions 러너용
+duckdb>=0.10
+requests>=2.31
+python-dotenv>=1.0
