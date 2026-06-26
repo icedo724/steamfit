@@ -247,12 +247,37 @@ def refresh_reviews(con, max_games=None):
     return total
 
 
+def backfill_tags(con, max_games=None):
+    """기존 게임 중 태그 없는 것(인기순) 백필. 신규 게임은 details에서 자동 수집됨."""
+    q = """SELECT appid FROM games
+           WHERE type='game' AND COALESCE(recommendations_total,0) > 0
+             AND (tags IS NULL OR tags='' OR tags='[]')
+           ORDER BY COALESCE(recommendations_total,0) DESC"""
+    if max_games:
+        q += f" LIMIT {int(max_games)}"
+    appids = [r[0] for r in con.execute(q).fetchall()]
+    print(f"[tags] 백필 대상 {len(appids):,}개")
+    n = 0
+    for i, appid in enumerate(appids, 1):
+        tags = _fetch_tags(appid)
+        if tags:
+            con.execute("UPDATE games SET tags=?, updated_at=now() WHERE appid=?",
+                        [json.dumps(tags, ensure_ascii=False), appid])
+            n += 1
+        time.sleep(DELAY)
+        if i % 200 == 0:
+            print(f"  {i:,}/{len(appids):,} · 태그 적재 {n:,}")
+    print(f"[tags] 백필 완료 {n:,}개")
+    return n
+
+
 def main():
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("applist")
     pd_ = sub.add_parser("details"); pd_.add_argument("--limit", type=int)
     pr = sub.add_parser("reviews"); pr.add_argument("--max-games", type=int)
+    pt = sub.add_parser("backfill-tags"); pt.add_argument("--max-games", type=int)
     pa = sub.add_parser("all"); pa.add_argument("--max-games", type=int)
     a = p.parse_args()
 
@@ -264,6 +289,8 @@ def main():
         collect_details(con, a.limit)
     elif a.cmd == "reviews":
         refresh_reviews(con, a.max_games)
+    elif a.cmd == "backfill-tags":
+        backfill_tags(con, a.max_games)
     elif a.cmd == "all":
         sync_applist(con)
         collect_details(con)
