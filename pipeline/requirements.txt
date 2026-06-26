@@ -1,4 +1,4 @@
 # 클라우드 증분 파이프라인 전용(경량) — GitHub Actions 러너용
-duckdb>=0.10
+duckdb==1.5.3   # MotherDuck(us-east-1) 지원 범위 1.4.0~1.5.3. 1.5.4는 확장 미지원이라 고정.
 requests>=2.31
 python-dotenv>=1.0
