@@ -1,0 +1,21 @@
+name: Tag backfill (one-off)
+
+# 기존 게임 태그 백필을 클라우드에서 수행 (로컬 reboot 무관). 재실행하면 남은 것만 이어감.
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r pipeline/requirements.txt
+      - name: Backfill Steam tags → MotherDuck
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: python -m pipeline.collect backfill-tags
