@@ -81,8 +81,8 @@ h2{font-size:1rem;margin:26px 0 10px}
 <div class="ph done"><div class="ic">✅</div><div class="t">데이터 수집<div class="s">공식 Steam API · 리뷰 1,021만</div></div></div>
 <div class="ph done"><div class="ic">✅</div><div class="t">모델링<div class="s">협업 임베딩 학습 · 하이브리드 베이스라인 +13%</div></div></div>
 <div class="ph done"><div class="ic">✅</div><div class="t">추천 데모<div class="s">취향+의도 steering 작동 (Gradio)</div></div></div>
-<div class="ph doing"><div class="ic">🔄</div><div class="t">클라우드 전환<div class="s">MotherDuck 적재 완료 · 증분 파이프라인 가동 중</div></div></div>
-<div class="ph todo"><div class="ic">⏳</div><div class="t">자동화<div class="s">GitHub Actions 매일 cron (steamfit 레포)</div></div></div>
+<div class="ph done"><div class="ic">✅</div><div class="t">클라우드 전환<div class="s">MotherDuck 적재 · 증분 파이프라인(EN+KO·워터마크)</div></div></div>
+<div class="ph done"><div class="ic">✅</div><div class="t">자동화<div class="s">GitHub Actions 매일 cron → MotherDuck (검증 완료)</div></div></div>
 <div class="ph todo"><div class="ic">⏳</div><div class="t">다국어 재학습 + 영구 배포<div class="s">다국어 임베딩 · HF Spaces</div></div></div>
 <div class="ph todo"><div class="ic">⏳</div><div class="t">추론 과정 시각화<div class="s">취향→의도→결합→근접검색 애니메이션 (explainability)</div></div></div>
 </div>
