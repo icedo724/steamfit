@@ -36,3 +36,9 @@ Thumbs.db
 
 # gradio 런타임 산출물
 .gradio/
+
+# HF Spaces 배포 바이너리(소스만 커밋)
+deploy/*.npy
+deploy/*.csv
+deploy/*.parquet
+deploy/steam-embed-model/
