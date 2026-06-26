@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "0 18 * * *"   # 매일 03:00 KST (UTC 18:00) 증분 갱신
   workflow_dispatch:        # 수동 실행 허용
+    inputs:
+      max_games:
+        description: "리뷰 델타 갱신할 상위 게임 수"
+        default: "3000"
 
 concurrency:
   group: steam-refresh      # 중복 실행 방지
@@ -28,4 +32,4 @@ jobs:
         env:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
-        run: python -m pipeline.collect all --max-games 8000
+        run: python -m pipeline.collect all --max-games ${{ github.event.inputs.max_games || '3000' }}
