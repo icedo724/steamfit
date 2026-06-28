@@ -278,7 +278,9 @@ def main():
     pd_ = sub.add_parser("details"); pd_.add_argument("--limit", type=int)
     pr = sub.add_parser("reviews"); pr.add_argument("--max-games", type=int)
     pt = sub.add_parser("backfill-tags"); pt.add_argument("--max-games", type=int)
-    pa = sub.add_parser("all"); pa.add_argument("--max-games", type=int)
+    pa = sub.add_parser("all")
+    pa.add_argument("--max-games", type=int)
+    pa.add_argument("--details-limit", type=int, help="이번 실행 신규 details 상한(타임아웃 방지)")
     a = p.parse_args()
 
     con, where = connect()
@@ -293,7 +295,7 @@ def main():
         backfill_tags(con, a.max_games)
     elif a.cmd == "all":
         sync_applist(con)
-        collect_details(con)
+        collect_details(con, a.details_limit)   # 상한 두어 reviews 시간 확보
         refresh_reviews(con, a.max_games)
     con.close()
 

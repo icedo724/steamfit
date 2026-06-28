@@ -32,4 +32,4 @@ jobs:
         env:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
-        run: python -m pipeline.collect all --max-games ${{ github.event.inputs.max_games || '3000' }}
+        run: python -m pipeline.collect all --max-games ${{ github.event.inputs.max_games || '2000' }} --details-limit 1500
