@@ -19,13 +19,14 @@ _map = pd.read_parquet(ROOT / "map2d.parquet")
 MX = dict(zip(_map["appid"], _map["x"]))
 MY = dict(zip(_map["appid"], _map["y"]))
 
-# ── 색상 팔레트 ───────────────────────────────────────────────────
-GRAPHITE = "#353535"   # 배경
-YALE = "#284b63"       # 카드/표면
-TEAL = "#3c6e71"       # 강조/버튼/연결선
-TEAL_LT = "#6fa8ab"    # 밝은 강조(어두운 표면 위 텍스트)
-WHITE = "#ffffff"      # 주요 글자
-ALABASTER = "#d9d9d9"  # 보조 글자
+# ── 색상 팔레트 (deep-twilight/bright-teal-blue/turquoise/frosted/light-cyan) ──
+GRAPHITE = "#03045e"   # 배경 (deep twilight)
+YALE = "#0077b6"       # 카드/표면 (bright teal blue)
+TEAL = "#00b4d8"       # 강조/버튼/연결선 (turquoise surf)
+TEAL_LT = "#90e0ef"    # 밝은 강조 (frosted blue)
+WHITE = "#ffffff"      # 최강조 글자
+ALABASTER = "#caf0f8"  # 기본/보조 글자 (light cyan)
+INK = "#021440"        # 입력칸·드롭다운 배경(아주 어두운 네이비)
 
 
 def _theme():
@@ -36,14 +37,15 @@ def _theme():
         block_background_fill=YALE, block_background_fill_dark=YALE,
         block_border_color=TEAL, block_border_color_dark=TEAL,
         border_color_primary=TEAL, border_color_primary_dark=TEAL,
-        body_text_color=WHITE, body_text_color_dark=WHITE,
+        body_text_color=ALABASTER, body_text_color_dark=ALABASTER,
         body_text_color_subdued=ALABASTER, body_text_color_subdued_dark=ALABASTER,
         block_label_text_color=ALABASTER, block_label_text_color_dark=ALABASTER,
         block_title_text_color=WHITE, block_title_text_color_dark=WHITE,
         button_primary_background_fill=TEAL, button_primary_background_fill_dark=TEAL,
         button_primary_background_fill_hover=YALE, button_primary_background_fill_hover_dark=YALE,
-        button_primary_text_color=WHITE, button_primary_text_color_dark=WHITE,
-        input_background_fill="#3f3f3f", input_background_fill_dark="#3f3f3f",
+        button_primary_text_color=GRAPHITE, button_primary_text_color_dark=GRAPHITE,
+        input_background_fill=INK, input_background_fill_dark=INK,
+        input_border_color=TEAL, input_border_color_dark=TEAL,
     )
     try:
         return t.set(**kw)
@@ -99,12 +101,12 @@ CHOICES = [
 
 CSS = """
 .reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px;color:#ffffff}
-.rc{display:flex;align-items:center;gap:12px;background:#284b63;border:1px solid #3c6e71;border-radius:10px;padding:11px 14px}
-.rk{color:#d9d9d9;font-size:.82rem;width:22px;text-align:right;font-weight:700}
+.rc{display:flex;align-items:center;gap:12px;background:#0077b6;border:1px solid #00b4d8;border-radius:10px;padding:11px 14px}
+.rk{color:#caf0f8;font-size:.82rem;width:22px;text-align:right;font-weight:700}
 .rn{color:#ffffff;font-weight:700;text-decoration:none;flex:1;font-size:.95rem}
-.rn:hover{text-decoration:underline;color:#6fa8ab}
-.rg{color:#d9d9d9;font-size:.78rem}
-.rs{color:#6fa8ab;font-size:.82rem;font-weight:700}
+.rn:hover{text-decoration:underline;color:#90e0ef}
+.rg{color:#caf0f8;font-size:.78rem}
+.rs{color:#90e0ef;font-size:.82rem;font-weight:700}
 """
 
 
@@ -121,7 +123,7 @@ def _build_fig(liked_ap, rec_ap):
     """임베딩 2D 맵: 전체(흐림) + 즐긴 게임(별,흰색) + 추천(teal)."""
     fig = go.Figure()
     fig.add_trace(go.Scattergl(x=_map["x"], y=_map["y"], mode="markers",
-                  marker=dict(size=3, color="rgba(217,217,217,0.16)"),
+                  marker=dict(size=3, color="rgba(144,224,239,0.16)"),
                   hoverinfo="skip", showlegend=False))
     rx = [(MX[a], MY[a], NAME.get(a, a)) for a in rec_ap if a in MX]
     if rx:
@@ -150,20 +152,20 @@ FLOW_CSS = """
 @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes grow{from{height:4px}to{}}
 @keyframes dash{to{background-position:0 -28px}}
-.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#d9d9d9;max-width:520px;margin:0 auto}
+.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#caf0f8;max-width:520px;margin:0 auto}
 .flow .st{opacity:0;animation:fin .5s ease forwards}
-.flow .box{background:#284b63;border:1px solid #3c6e71;border-radius:12px;padding:11px 14px;text-align:center}
+.flow .box{background:#0077b6;border:1px solid #00b4d8;border-radius:12px;padding:11px 14px;text-align:center}
 .flow .hd{font-size:.82rem;font-weight:700;margin-bottom:4px;color:#ffffff}
 .flow .conn{width:3px;height:26px;margin:3px auto;border-radius:2px;
-  background:repeating-linear-gradient(#3c6e71 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
-.flow .chip{display:inline-block;background:#1e3a4a;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem;color:#d9d9d9}
-.flow .chip.rec{background:#3c6e71;border:1px solid #6fa8ab;color:#ffffff;opacity:0;animation:fin .4s forwards}
+  background:repeating-linear-gradient(#00b4d8 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
+.flow .chip{display:inline-block;background:#021440;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem;color:#caf0f8}
+.flow .chip.rec{background:#00b4d8;border:1px solid #90e0ef;color:#03045e;font-weight:700;opacity:0;animation:fin .4s forwards}
 .flow .vec{display:inline-flex;gap:3px;margin-top:6px;height:20px;align-items:flex-end}
-.flow .vec i{width:6px;border-radius:2px;background:#6fa8ab;animation:pulse 1.1s infinite}
-.flow .vec.i i{background:#d9d9d9}.flow .vec.q i{background:#ffffff}
-.flow .lbl{font-size:.72rem;color:#d9d9d9;margin:2px 0}
+.flow .vec i{width:6px;border-radius:2px;background:#90e0ef;animation:pulse 1.1s infinite}
+.flow .vec.i i{background:#caf0f8}.flow .vec.q i{background:#ffffff}
+.flow .lbl{font-size:.72rem;color:#caf0f8;margin:2px 0}
 .flow .mix{display:flex;gap:8px}.flow .mix>div{flex:1}
-.flow .mut{color:#9a9a9a}
+.flow .mut{color:#5b7fa6}
 </style>
 """
 
@@ -207,8 +209,8 @@ def recommend(liked, intent, w_intent, topn):
     liked = liked or []
     intent = (intent or "").strip()
     if not liked and not intent:
-        return ("<p style='color:#d9d9d9'>게임을 선택하거나 의도를 입력하세요.</p>",
-                "<p style='color:#d9d9d9'>추천을 실행하면 추론 과정이 애니메이션으로 재생됩니다.</p>",
+        return ("<p style='color:#caf0f8'>게임을 선택하거나 의도를 입력하세요.</p>",
+                "<p style='color:#caf0f8'>추천을 실행하면 추론 과정이 애니메이션으로 재생됩니다.</p>",
                 _empty_fig())
     n = len(cand)
     score = np.zeros(n, np.float32)
@@ -238,7 +240,18 @@ def recommend(liked, intent, w_intent, topn):
     return html, flow, fig
 
 
-with gr.Blocks(title="SteamFit", theme=_theme()) as demo:
+# 드롭다운/입력칸 가시성 강제 (흰배경+흰글씨 겹침 방지)
+GLOBAL_CSS = """
+input, textarea { color:#caf0f8 !important; background:#021440 !important; }
+input::placeholder, textarea::placeholder { color:#7fa8c9 !important; }
+ul.options { background:#021440 !important; border:1px solid #00b4d8 !important; }
+ul.options li, li.item, .options .item { background:#021440 !important; color:#caf0f8 !important; }
+ul.options li:hover, li.item:hover, .item.selected, .item.active { background:#0077b6 !important; color:#ffffff !important; }
+.token, span.token { background:#00b4d8 !important; color:#03045e !important; }
+.token .token-remove, .token svg { color:#03045e !important; fill:#03045e !important; }
+"""
+
+with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
     gr.Markdown("# 🎮 SteamFit — Steam 게임 추천\n"
                 "**취향**(즐긴 게임) + **의도**(원하는 특징 텍스트)를 결합한 하이브리드 추천. "
                 "Steam 상점이 못 하는 *의도 반영*이 핵심. **한국어·영어 의도 모두 지원** 🇰🇷🇺🇸")
