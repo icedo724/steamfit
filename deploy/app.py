@@ -98,7 +98,7 @@ def recommend(liked, intent, w_intent, topn):
 with gr.Blocks(title="SteamFit") as demo:
     gr.Markdown("# 🎮 SteamFit — Steam 게임 추천\n"
                 "**취향**(즐긴 게임) + **의도**(원하는 특징 텍스트)를 결합한 하이브리드 추천. "
-                "Steam 상점이 못 하는 *의도 반영*이 핵심.")
+                "Steam 상점이 못 하는 *의도 반영*이 핵심. **한국어·영어 의도 모두 지원** 🇰🇷🇺🇸")
     liked = gr.Dropdown(CHOICES, multiselect=True, label="🎮 즐겨한 게임 (검색해서 선택)", filterable=True)
     intent = gr.Textbox(label="✍️ 원하는 특징 / 의도",
                         placeholder="예: relaxing open world crafting / 협동 호러 / competitive multiplayer")
