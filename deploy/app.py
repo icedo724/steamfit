@@ -10,8 +10,14 @@ from pathlib import Path
 import gradio as gr
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 ROOT = Path(__file__).resolve().parent
+
+# 추론 시각화용 2D 맵 (협업 임베딩 UMAP 투영)
+_map = pd.read_parquet(ROOT / "map2d.parquet")
+MX = dict(zip(_map["appid"], _map["x"]))
+MY = dict(zip(_map["appid"], _map["y"]))
 
 games = pd.read_parquet(ROOT / "games_lookup.parquet")
 NAME = dict(zip(games["appid"], games["name"]))
@@ -37,7 +43,8 @@ def encoder():
     global _encoder
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
-        _encoder = SentenceTransformer(str(ROOT / "steam-embed-model"))
+        # 모델은 별도 Hub 저장소에서 로드(Space 용량 절약)
+        _encoder = SentenceTransformer("mininiming/steamfit-encoder")
     return _encoder
 
 
@@ -68,11 +75,46 @@ CSS = """
 """
 
 
+def _empty_fig(msg="게임/의도를 입력하면 추론 과정이 여기 그려집니다"):
+    f = go.Figure()
+    f.update_layout(template="plotly_dark", paper_bgcolor="#0b1622", plot_bgcolor="#0b1622",
+                    height=460, margin=dict(l=10, r=10, t=10, b=10),
+                    xaxis=dict(visible=False), yaxis=dict(visible=False),
+                    annotations=[dict(text=msg, showarrow=False, font=dict(color="#9fb2c6"))])
+    return f
+
+
+def _build_fig(liked_ap, rec_ap):
+    """임베딩 2D 맵: 전체(흐림) + 즐긴 게임(별) + 추천(초록)."""
+    fig = go.Figure()
+    fig.add_trace(go.Scattergl(x=_map["x"], y=_map["y"], mode="markers",
+                  marker=dict(size=3, color="rgba(120,140,160,0.22)"),
+                  hoverinfo="skip", showlegend=False))
+    rx = [(MX[a], MY[a], NAME.get(a, a)) for a in rec_ap if a in MX]
+    if rx:
+        fig.add_trace(go.Scattergl(x=[p[0] for p in rx], y=[p[1] for p in rx],
+                      mode="markers+text", text=[p[2] for p in rx], textposition="top center",
+                      marker=dict(size=11, color="#39d98a", line=dict(width=1, color="#0b1622")),
+                      textfont=dict(size=9, color="#39d98a"), name="추천"))
+    lx = [(MX[a], MY[a], NAME.get(a, a)) for a in liked_ap if a in MX]
+    if lx:
+        fig.add_trace(go.Scattergl(x=[p[0] for p in lx], y=[p[1] for p in lx],
+                      mode="markers+text", text=[p[2] for p in lx], textposition="bottom center",
+                      marker=dict(size=16, color="#4f9bff", symbol="star", line=dict(width=1, color="#fff")),
+                      textfont=dict(size=10, color="#7fb0ff"), name="즐긴 게임"))
+    fig.update_layout(template="plotly_dark", paper_bgcolor="#0b1622", plot_bgcolor="#0b1622",
+                      height=460, margin=dict(l=10, r=10, t=34, b=10),
+                      title=dict(text="🧭 임베딩 공간 — 취향(별)에서 추천(초록)이 나오는 과정", font=dict(size=13)),
+                      xaxis=dict(visible=False), yaxis=dict(visible=False),
+                      legend=dict(orientation="h", y=1.02, x=0))
+    return fig
+
+
 def recommend(liked, intent, w_intent, topn):
     liked = liked or []
     intent = (intent or "").strip()
     if not liked and not intent:
-        return "<p style='color:#9fb2c6'>게임을 선택하거나 의도를 입력하세요.</p>"
+        return "<p style='color:#9fb2c6'>게임을 선택하거나 의도를 입력하세요.</p>", _empty_fig()
     n = len(cand)
     score = np.zeros(n, np.float32)
     rows = [cand_idx[a] for a in liked if a in cand_idx]
@@ -85,6 +127,7 @@ def recommend(liked, intent, w_intent, topn):
     for r in rows:
         score[r] = -np.inf
     top = np.argsort(-score)[: int(topn)]
+    rec_ap = [cand[r] for r in top]
     out = []
     for i, r in enumerate(top, 1):
         a = cand[r]; url = f"https://store.steampowered.com/app/{a}"
@@ -92,7 +135,9 @@ def recommend(liked, intent, w_intent, topn):
                    f'<a class="rn" href="{url}" target="_blank">{NAME.get(a,a)}</a>'
                    f'<span class="rg">{_genres(a)}</span>'
                    f'<span class="rs">{score[r]:.3f}</span></div>')
-    return f"<style>{CSS}</style><div class='reclist'>" + "".join(out) + "</div>"
+    html = f"<style>{CSS}</style><div class='reclist'>" + "".join(out) + "</div>"
+    fig = _build_fig([a for a in liked if a in cand_idx], rec_ap)
+    return html, fig
 
 
 with gr.Blocks(title="SteamFit") as demo:
@@ -106,9 +151,14 @@ with gr.Blocks(title="SteamFit") as demo:
         w_intent = gr.Slider(0, 1, value=0.4, step=0.1, label="의도 반영 비중 (0=취향만 · 1=의도만)")
         topn = gr.Slider(5, 20, value=10, step=1, label="추천 개수")
     btn = gr.Button("추천 받기", variant="primary")
-    out = gr.HTML()
-    btn.click(recommend, [liked, intent, w_intent, topn], out)
-    gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰</small>")
+    with gr.Row():
+        with gr.Column(scale=1):
+            out = gr.HTML()
+        with gr.Column(scale=1):
+            out_plot = gr.Plot(label="추론 시각화")
+    btn.click(recommend, [liked, intent, w_intent, topn], [out, out_plot])
+    gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰 · "
+                "맵: 협업 임베딩 UMAP 2D (게임이 플레이 성향별로 군집)</small>")
 
 
 if __name__ == "__main__":
