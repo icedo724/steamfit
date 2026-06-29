@@ -41,6 +41,7 @@ Thumbs.db
 deploy/*.npy
 deploy/*.csv
 deploy/*.parquet
+deploy/*.npz
 deploy/steam-embed-model/
 
 # 학습 시각화 중간 데이터(HTML에 임베드됨)

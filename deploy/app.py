@@ -45,8 +45,25 @@ tids = pd.read_csv(ROOT / "game_emb_appids.csv").iloc[:, 0].tolist()
 t_row = {a: i for i, a in enumerate(tids)}
 cand = [a for a in cids if a in t_row]
 collab_c = np.stack([collab[c_row[a]] for a in cand])
+collab_n = collab_c / (np.linalg.norm(collab_c, axis=1, keepdims=True) + 1e-9)  # 코사인용 정규화
 content_c = np.stack([content[t_row[a]] for a in cand])
 cand_idx = {a: i for i, a in enumerate(cand)}
+
+# 공동플레이(co-occurrence) top-K 이웃 — 하이브리드 취향(RRF)용
+#   eval_taste.py 측정: RRF(item2vec+cooc) 취향 R@10 0.223 vs item2vec 단독 0.172
+_ck = np.load(ROOT / "cooc_topk.npz")
+_ck_appids = _ck["appids"].astype(np.int64)              # cooc-row → appid
+_ck_nb_appid = _ck_appids[_ck["nb"]]                     # [rows × K] 이웃 appid
+_ck_wt = _ck["wt"]                                       # [rows × K] 공동플레이 가중치
+_cooc_row = {int(a): i for i, a in enumerate(_ck_appids)}
+
+
+def _ranks(s):
+    """점수 내림차순 순위(1=최고). RRF 융합용."""
+    o = np.argsort(-s)
+    r = np.empty(len(s), np.float32)
+    r[o] = np.arange(1, len(s) + 1, dtype=np.float32)
+    return r
 
 # 학습 과정 데이터(에폭별 임베딩 스냅샷)
 TRAIN = json.loads((ROOT / "training_frames.json").read_text(encoding="utf-8"))
@@ -194,7 +211,7 @@ def _flow_html(liked_names, intent, w_intent, rec_names):
     return f"""{FLOW_CSS}<div class="flow">
   <div class="st box" style="animation-delay:.1s"><div class="hd">🎮 즐긴 게임</div>{lc}</div>
   <div class="st conn" style="animation-delay:.7s"></div>
-  <div class="st lbl" style="animation-delay:.7s">평균 풀링 ↓</div>
+  <div class="st lbl" style="animation-delay:.7s">협업 임베딩 + 공동플레이 RRF 융합 ↓</div>
   <div class="st box" style="animation-delay:.9s"><div class="hd">🧭 취향 벡터</div>{_bars("", 1)}</div>
   <div class="st conn" style="animation-delay:1.3s"></div>
   <div class="mix">
@@ -220,12 +237,24 @@ def recommend(liked, intent, w_intent, topn):
     n = len(cand)
     score = np.zeros(n, np.float32)
     rows = [cand_idx[a] for a in liked if a in cand_idx]
+    w = float(w_intent)
     if rows:
-        q = collab_c[rows].mean(0); q /= np.linalg.norm(q) + 1e-9
-        score += (1 - float(w_intent)) * _norm(collab_c @ q)
+        # 취향 = item2vec 코사인 + 공동플레이(cooc)를 RRF(랭크 융합)로 결합 → 스케일에 강건
+        emb_s = collab_n @ (collab_n[rows].mean(0) / (np.linalg.norm(collab_n[rows].mean(0)) + 1e-9))
+        cooc_s = np.zeros(n, np.float32)
+        for a in liked:
+            ri = _cooc_row.get(int(a))
+            if ri is None:
+                continue
+            for nbr, wv in zip(_ck_nb_appid[ri], _ck_wt[ri]):
+                ci = cand_idx.get(int(nbr))
+                if ci is not None:
+                    cooc_s[ci] += wv
+        taste = 1.0 / (60 + _ranks(emb_s)) + 1.0 / (60 + _ranks(cooc_s))
+        score += (1 - w) * _norm(taste)
     if intent:
         qi = encoder().encode(intent, normalize_embeddings=True)
-        score += float(w_intent) * _norm(content_c @ qi)
+        score += w * _norm(content_c @ qi)
     for r in rows:
         score[r] = -np.inf
     top = np.argsort(-score)[: int(topn)]
