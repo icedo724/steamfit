@@ -251,28 +251,88 @@ ul.options li:hover, li.item:hover, .item.selected, .item.active { background:#0
 .token .token-remove, .token svg { color:#03045e !important; fill:#03045e !important; }
 """
 
+ARCH_HTML = """
+<style>.arch{color:#caf0f8;font-size:.86rem}.arch .row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:5px 0}
+.arch .nd{background:#021440;border:1px solid #00b4d8;border-radius:8px;padding:7px 11px;font-size:.8rem;text-align:center}
+.arch .nd b{color:#fff}.arch .ar{color:#00b4d8;font-weight:700}.arch .nt{color:#90e0ef;font-size:.76rem;margin-top:8px}</style>
+<div class="arch">
+<div class="row"><div class="nd">게임 A<br><b>(앵커)</b></div><div class="nd">게임 B<br><b>(양성쌍)</b></div></div>
+<div class="row"><span class="ar">↓ 임베딩 룩업</span></div>
+<div class="row"><div class="nd"><b>임베딩 테이블</b> · 게임 N × 차원 D</div></div>
+<div class="row"><span class="ar">↓ L2 정규화 → 유사도 행렬(배치 B×B)</span></div>
+<div class="row"><div class="nd"><b>InfoNCE</b> · 양성쌍 가깝게 / 배치 내 음성 멀게</div></div>
+<div class="nt">· 협업 임베딩(item2vec식): 게임ID→벡터, 공동플레이 쌍 학습 (위 그림)<br>
+· 콘텐츠 임베딩: 텍스트(이름·태그·설명)→다국어 트랜스포머→벡터<br>
+· 추천 = 협업(취향) + 콘텐츠(의도) 가중 결합 → 하이브리드</div></div>
+"""
+
+
+def _training_fig():
+    """학습 과정 애니메이션 — 에폭별 임베딩이 군집 형성 (Plotly frames)."""
+    import json
+    d = json.loads((ROOT / "training_frames.json").read_text(encoding="utf-8"))
+    fr, gen, nm, bnd = d["frames"], d["genres"], d["names"], d["bounds"]
+    gset = list(dict.fromkeys(gen))
+    pal = ["#00b4d8", "#90e0ef", "#caf0f8", "#48cae4", "#ade8f4", "#0096c7",
+           "#0077b6", "#48cae4", "#90e0ef", "#caf0f8", "#00b4d8"]
+    colors = [pal[gset.index(g) % len(pal)] for g in gen]
+
+    def sc(f):
+        return go.Scattergl(x=[p[0] for p in f], y=[p[1] for p in f], mode="markers",
+                            marker=dict(size=4, color=colors), text=nm, hoverinfo="text",
+                            showlegend=False)
+
+    fig = go.Figure(data=[sc(fr[0])],
+                    frames=[go.Frame(data=[sc(f)], name=str(i)) for i, f in enumerate(fr)])
+    steps = [dict(method="animate", label=str(i),
+                  args=[[str(i)], dict(frame=dict(duration=0, redraw=True), mode="immediate")])
+             for i in range(len(fr))]
+    fig.update_layout(
+        template="plotly_dark", paper_bgcolor=GRAPHITE, plot_bgcolor="#021440", height=440,
+        margin=dict(l=10, r=10, t=44, b=10),
+        title=dict(text="학습 진행 → 게임 임베딩이 군집을 형성 (점=게임, 색=장르)",
+                   font=dict(color=ALABASTER, size=12)),
+        xaxis=dict(visible=False, range=[bnd["xlo"], bnd["xhi"]]),
+        yaxis=dict(visible=False, range=[bnd["ylo"], bnd["yhi"]]),
+        updatemenus=[dict(type="buttons", showactive=False, x=0, y=1.12, bgcolor=TEAL,
+            buttons=[dict(label="▶ 재생", method="animate",
+                args=[None, dict(frame=dict(duration=350, redraw=True), fromcurrent=True,
+                                 transition=dict(duration=300))])])],
+        sliders=[dict(active=0, x=0, y=0, len=1, currentvalue=dict(prefix="에폭 "), steps=steps)],
+    )
+    return fig
+
+
 with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
     gr.Markdown("# 🎮 SteamFit — Steam 게임 추천\n"
                 "**취향**(즐긴 게임) + **의도**(원하는 특징 텍스트)를 결합한 하이브리드 추천. "
                 "Steam 상점이 못 하는 *의도 반영*이 핵심. **한국어·영어 의도 모두 지원** 🇰🇷🇺🇸")
-    liked = gr.Dropdown(CHOICES, multiselect=True, label="🎮 즐겨한 게임 (검색해서 선택)", filterable=True)
-    intent = gr.Textbox(label="✍️ 원하는 특징 / 의도",
-                        placeholder="예: relaxing open world crafting / 협동 호러 / competitive multiplayer")
-    with gr.Row():
-        w_intent = gr.Slider(0, 1, value=0.4, step=0.1, label="의도 반영 비중 (0=취향만 · 1=의도만)")
-        topn = gr.Slider(5, 20, value=10, step=1, label="추천 개수")
-    btn = gr.Button("추천 받기", variant="primary")
-    with gr.Row():
-        with gr.Column(scale=1):
-            out = gr.HTML(label="추천 결과")
-        with gr.Column(scale=1):
-            gr.Markdown("##### 🎬 추론 과정 (자동 재생)")
-            out_flow = gr.HTML()
-    with gr.Accordion("🧭 임베딩 공간 2D 맵 (취향→추천)", open=False):
-        out_plot = gr.Plot()
-    btn.click(recommend, [liked, intent, w_intent, topn], [out, out_flow, out_plot])
-    gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰 · "
-                "맵: 협업 임베딩 UMAP 2D (게임이 플레이 성향별로 군집)</small>")
+    with gr.Tabs():
+        with gr.Tab("🎮 추천"):
+            liked = gr.Dropdown(CHOICES, multiselect=True, label="🎮 즐겨한 게임 (검색해서 선택)", filterable=True)
+            intent = gr.Textbox(label="✍️ 원하는 특징 / 의도",
+                                placeholder="예: relaxing open world crafting / 협동 호러 / competitive multiplayer")
+            with gr.Row():
+                w_intent = gr.Slider(0, 1, value=0.4, step=0.1, label="의도 반영 비중 (0=취향만 · 1=의도만)")
+                topn = gr.Slider(5, 20, value=10, step=1, label="추천 개수")
+            btn = gr.Button("추천 받기", variant="primary")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    out = gr.HTML(label="추천 결과")
+                with gr.Column(scale=1):
+                    gr.Markdown("##### 🎬 추론 과정 (자동 재생)")
+                    out_flow = gr.HTML()
+            with gr.Accordion("🧭 임베딩 공간 2D 맵 (취향→추천)", open=False):
+                out_plot = gr.Plot()
+            btn.click(recommend, [liked, intent, w_intent, topn], [out, out_flow, out_plot])
+        with gr.Tab("🎬 학습 과정"):
+            gr.Markdown("### 대조학습으로 임베딩이 군집을 형성하는 과정\n"
+                        "**▶ 재생**을 누르면 무작위로 흩어진 게임들이 에폭마다 군집으로 뭉칩니다. "
+                        "슬라이더로 에폭 이동도 가능.")
+            gr.Plot(value=_training_fig())
+            gr.Markdown("#### 🧩 모델 구조 (대조학습)")
+            gr.HTML(ARCH_HTML)
+    gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰</small>")
 
 
 if __name__ == "__main__":
