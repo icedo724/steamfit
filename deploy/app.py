@@ -110,11 +110,72 @@ def _build_fig(liked_ap, rec_ap):
     return fig
 
 
+FLOW_CSS = """
+<style>
+@keyframes fin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes grow{from{height:4px}to{}}
+@keyframes dash{to{background-position:0 -28px}}
+.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#e7eef6;max-width:520px;margin:0 auto}
+.flow .st{opacity:0;animation:fin .5s ease forwards}
+.flow .box{background:#16212e;border:1px solid #27384b;border-radius:12px;padding:11px 14px;text-align:center}
+.flow .hd{font-size:.82rem;font-weight:700;margin-bottom:4px}
+.flow .conn{width:3px;height:26px;margin:3px auto;border-radius:2px;
+  background:repeating-linear-gradient(#4f9bff 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
+.flow .chip{display:inline-block;background:#22344a;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem}
+.flow .chip.rec{background:#16352604;border:1px solid #2e6b4a;color:#39d98a;opacity:0;animation:fin .4s forwards}
+.flow .vec{display:inline-flex;gap:3px;margin-top:6px;height:20px;align-items:flex-end}
+.flow .vec i{width:6px;border-radius:2px;background:#4f9bff;animation:pulse 1.1s infinite}
+.flow .vec.i i{background:#f5b54a}.flow .vec.q i{background:#39d98a}
+.flow .lbl{font-size:.72rem;color:#9fb2c6;margin:2px 0}
+.flow .mix{display:flex;gap:8px}.flow .mix>div{flex:1}
+.flow .mut{color:#5b6b7d}
+</style>
+"""
+
+
+def _bars(color_cls, seed):
+    import random
+    rng = random.Random(seed)
+    hs = [rng.randint(6, 20) for _ in range(10)]
+    bs = "".join(f'<i style="height:{h}px;animation-delay:{i*.05}s"></i>' for i, h in enumerate(hs))
+    return f'<div class="vec {color_cls}">{bs}</div>'
+
+
+def _flow_html(liked_names, intent, w_intent, rec_names):
+    wt, wi = round((1 - w_intent) * 100), round(w_intent * 100)
+    lc = "".join(f'<span class="chip">{n}</span>' for n in liked_names[:5]) or '<span class="mut">없음</span>'
+    rc = "".join(f'<span class="chip rec" style="animation-delay:{3.0+i*.18:.2f}s">{n}</span>'
+                 for i, n in enumerate(rec_names[:6]))
+    intent_box = (f'<div class="st box" style="animation-delay:1.4s"><div class="hd">✍️ 의도</div>'
+                  f'<div class="lbl">"{intent}"</div>{_bars("i", 2)}</div>') if intent.strip() else \
+                 '<div class="st box mut" style="animation-delay:1.4s">✍️ 의도 없음 (취향만)</div>'
+    return f"""{FLOW_CSS}<div class="flow">
+  <div class="st box" style="animation-delay:.1s"><div class="hd">🎮 즐긴 게임</div>{lc}</div>
+  <div class="st conn" style="animation-delay:.7s"></div>
+  <div class="st lbl" style="animation-delay:.7s">평균 풀링 ↓</div>
+  <div class="st box" style="animation-delay:.9s"><div class="hd">🧭 취향 벡터</div>{_bars("", 1)}</div>
+  <div class="st conn" style="animation-delay:1.3s"></div>
+  <div class="mix">
+    <div class="st box" style="animation-delay:.9s"><div class="hd">위 취향</div></div>
+    {intent_box}
+  </div>
+  <div class="st conn" style="animation-delay:2.0s"></div>
+  <div class="st lbl" style="animation-delay:2.0s">⊕ 가중 결합 (취향 {wt}% · 의도 {wi}%) ↓</div>
+  <div class="st box" style="animation-delay:2.2s"><div class="hd">🎯 쿼리 벡터</div>{_bars("q", 3)}</div>
+  <div class="st conn" style="animation-delay:2.6s"></div>
+  <div class="st lbl" style="animation-delay:2.6s">🔍 12,000개 게임에서 벡터 검색 ↓</div>
+  <div class="st box" style="animation-delay:2.9s"><div class="hd">✅ 추천</div><div>{rc}</div></div>
+</div>"""
+
+
 def recommend(liked, intent, w_intent, topn):
     liked = liked or []
     intent = (intent or "").strip()
     if not liked and not intent:
-        return "<p style='color:#9fb2c6'>게임을 선택하거나 의도를 입력하세요.</p>", _empty_fig()
+        return ("<p style='color:#9fb2c6'>게임을 선택하거나 의도를 입력하세요.</p>",
+                "<p style='color:#9fb2c6'>추천을 실행하면 추론 과정이 애니메이션으로 재생됩니다.</p>",
+                _empty_fig())
     n = len(cand)
     score = np.zeros(n, np.float32)
     rows = [cand_idx[a] for a in liked if a in cand_idx]
@@ -136,8 +197,11 @@ def recommend(liked, intent, w_intent, topn):
                    f'<span class="rg">{_genres(a)}</span>'
                    f'<span class="rs">{score[r]:.3f}</span></div>')
     html = f"<style>{CSS}</style><div class='reclist'>" + "".join(out) + "</div>"
-    fig = _build_fig([a for a in liked if a in cand_idx], rec_ap)
-    return html, fig
+    liked_in = [a for a in liked if a in cand_idx]
+    flow = _flow_html([NAME.get(a, a) for a in liked_in], intent, float(w_intent),
+                      [NAME.get(a, a) for a in rec_ap])
+    fig = _build_fig(liked_in, rec_ap)
+    return html, flow, fig
 
 
 with gr.Blocks(title="SteamFit") as demo:
@@ -153,10 +217,13 @@ with gr.Blocks(title="SteamFit") as demo:
     btn = gr.Button("추천 받기", variant="primary")
     with gr.Row():
         with gr.Column(scale=1):
-            out = gr.HTML()
+            out = gr.HTML(label="추천 결과")
         with gr.Column(scale=1):
-            out_plot = gr.Plot(label="추론 시각화")
-    btn.click(recommend, [liked, intent, w_intent, topn], [out, out_plot])
+            gr.Markdown("##### 🎬 추론 과정 (자동 재생)")
+            out_flow = gr.HTML()
+    with gr.Accordion("🧭 임베딩 공간 2D 맵 (취향→추천)", open=False):
+        out_plot = gr.Plot()
+    btn.click(recommend, [liked, intent, w_intent, topn], [out, out_flow, out_plot])
     gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰 · "
                 "맵: 협업 임베딩 UMAP 2D (게임이 플레이 성향별로 군집)</small>")
 
