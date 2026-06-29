@@ -67,11 +67,13 @@ CHOICES = [
 ]
 
 CSS = """
-.reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-.rc{display:flex;align-items:center;gap:12px;background:#16212e;border:1px solid #27384b;border-radius:10px;padding:10px 14px}
-.rk{color:#9fb2c6;font-size:.8rem;width:20px;text-align:right}
-.rn{color:#4f9bff;font-weight:700;text-decoration:none;flex:1}
-.rg{color:#9fb2c6;font-size:.78rem}.rs{color:#39d98a;font-size:.78rem}
+.reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px;color:#f1f5fa}
+.rc{display:flex;align-items:center;gap:12px;background:#1d2c3e;border:1px solid #3a4d63;border-radius:10px;padding:11px 14px}
+.rk{color:#aebccd;font-size:.82rem;width:22px;text-align:right;font-weight:700}
+.rn{color:#ffffff;font-weight:700;text-decoration:none;flex:1;font-size:.95rem}
+.rn:hover{text-decoration:underline;color:#9cc2ff}
+.rg{color:#b7c4d4;font-size:.78rem}
+.rs{color:#5fe6a6;font-size:.8rem;font-weight:700}
 """
 
 
