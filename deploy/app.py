@@ -1,7 +1,7 @@
-"""SteamFit — 취향+의도 하이브리드 게임 추천 (HF Spaces, 자체 포함).
+"""SteamFit — 취향+의도 하이브리드 게임 추천 (HF Spaces). 라이트 테마.
 
-취향(즐긴 게임 → 협업 임베딩) + 의도(텍스트 → 콘텐츠 임베딩) 결합.
-모델/임베딩은 Space에 함께 업로드된 파일에서 로드.
+탭: 추천(취향+의도 + 추론 흐름 + 2D맵) / 학습 과정(에폭 슬라이더 + 구조도).
+모델 인코더는 별도 Hub 저장소(mininiming/steamfit-encoder)에서 로드.
 """
 import json
 from collections import Counter
@@ -14,48 +14,28 @@ import plotly.graph_objects as go
 
 ROOT = Path(__file__).resolve().parent
 
-# 추론 시각화용 2D 맵 (협업 임베딩 UMAP 투영)
-_map = pd.read_parquet(ROOT / "map2d.parquet")
-MX = dict(zip(_map["appid"], _map["x"]))
-MY = dict(zip(_map["appid"], _map["y"]))
-
-# ── 색상 팔레트 (deep-twilight/bright-teal-blue/turquoise/frosted/light-cyan) ──
-GRAPHITE = "#03045e"   # 배경 (deep twilight)
-YALE = "#0077b6"       # 카드/표면 (bright teal blue)
-TEAL = "#00b4d8"       # 강조/버튼/연결선 (turquoise surf)
-TEAL_LT = "#90e0ef"    # 밝은 강조 (frosted blue)
-WHITE = "#ffffff"      # 최강조 글자
-ALABASTER = "#caf0f8"  # 기본/보조 글자 (light cyan)
-INK = "#021440"        # 입력칸·드롭다운 배경(아주 어두운 네이비)
-
-
-def _theme():
-    import gradio as gr
-    t = gr.themes.Base()
-    kw = dict(
-        body_background_fill=GRAPHITE, body_background_fill_dark=GRAPHITE,
-        block_background_fill=YALE, block_background_fill_dark=YALE,
-        block_border_color=TEAL, block_border_color_dark=TEAL,
-        border_color_primary=TEAL, border_color_primary_dark=TEAL,
-        body_text_color=ALABASTER, body_text_color_dark=ALABASTER,
-        body_text_color_subdued=ALABASTER, body_text_color_subdued_dark=ALABASTER,
-        block_label_text_color=ALABASTER, block_label_text_color_dark=ALABASTER,
-        block_title_text_color=WHITE, block_title_text_color_dark=WHITE,
-        button_primary_background_fill=TEAL, button_primary_background_fill_dark=TEAL,
-        button_primary_background_fill_hover=YALE, button_primary_background_fill_hover_dark=YALE,
-        button_primary_text_color=GRAPHITE, button_primary_text_color_dark=GRAPHITE,
-        input_background_fill=INK, input_background_fill_dark=INK,
-        input_border_color=TEAL, input_border_color_dark=TEAL,
-    )
-    try:
-        return t.set(**kw)
-    except Exception:
-        return t  # 토큰 비호환 시 기본 테마
+# ── 색상 팔레트 (warm neutrals + 가독용 다크 텍스트) ───────────────
+BG = "#f5ebe0"        # linen (페이지 배경)
+CARD = "#e3d5ca"      # powder-petal (카드/표면)
+PARCH = "#edede9"     # parchment (입력칸/보조 표면)
+ACCENT = "#d5bdaf"    # almond-silk (버튼/강조)
+MUTE = "#d6ccc2"      # dust-grey (테두리/구름)
+TEXT = "#3a332c"      # 다크 에스프레소 (주요 글자)
+TEXT2 = "#6f6253"     # 미디엄 브라운 (보조 글자)
+HILITE = "#bc6c25"    # 강조 포인트(추천/칩) — 밝은 배경 대비용
+LIKED = "#5a4632"     # 즐긴 게임 마커(다크 브라운)
+# 데이터 시각화용 장르 색(밝은 배경에서 구분되는 어스톤)
+GENRE_PAL = ["#9c6644", "#6b705c", "#bc6c25", "#7f5539", "#a5a58d", "#5c6b73",
+             "#8a5a44", "#606c38", "#9d8189", "#7d6b5d", "#937341"]
 
 games = pd.read_parquet(ROOT / "games_lookup.parquet")
 NAME = dict(zip(games["appid"], games["name"]))
 GENRE = dict(zip(games["appid"], games["genres"]))
 POP = dict(zip(games["appid"], games["recommendations_total"]))
+
+_map = pd.read_parquet(ROOT / "map2d.parquet")
+MX = dict(zip(_map["appid"], _map["x"]))
+MY = dict(zip(_map["appid"], _map["y"]))
 
 collab = np.load(ROOT / "item2vec_emb.npy")
 cids = pd.read_csv(ROOT / "item2vec_appids.csv")["appid"].tolist()
@@ -63,11 +43,16 @@ c_row = {a: i for i, a in enumerate(cids)}
 content = np.load(ROOT / "game_emb.npy")
 tids = pd.read_csv(ROOT / "game_emb_appids.csv").iloc[:, 0].tolist()
 t_row = {a: i for i, a in enumerate(tids)}
-
 cand = [a for a in cids if a in t_row]
 collab_c = np.stack([collab[c_row[a]] for a in cand])
 content_c = np.stack([content[t_row[a]] for a in cand])
 cand_idx = {a: i for i, a in enumerate(cand)}
+
+# 학습 과정 데이터(에폭별 임베딩 스냅샷)
+TRAIN = json.loads((ROOT / "training_frames.json").read_text(encoding="utf-8"))
+N_EPOCHS = len(TRAIN["frames"]) - 1
+_gset = list(dict.fromkeys(TRAIN["genres"]))
+_gcolor = [GENRE_PAL[_gset.index(g) % len(GENRE_PAL)] for g in TRAIN["genres"]]
 
 _encoder = None
 
@@ -76,7 +61,6 @@ def encoder():
     global _encoder
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
-        # 모델은 별도 Hub 저장소에서 로드(Space 용량 절약)
         _encoder = SentenceTransformer("mininiming/steamfit-encoder")
     return _encoder
 
@@ -99,73 +83,94 @@ CHOICES = [
     for a in _sorted[:6000]
 ]
 
+
+def _theme():
+    t = gr.themes.Base()
+    kw = dict(
+        body_background_fill=BG, body_background_fill_dark=BG,
+        block_background_fill=CARD, block_background_fill_dark=CARD,
+        block_border_color=MUTE, block_border_color_dark=MUTE,
+        border_color_primary="#c9b8a8", border_color_primary_dark="#c9b8a8",
+        body_text_color=TEXT, body_text_color_dark=TEXT,
+        body_text_color_subdued=TEXT2, body_text_color_subdued_dark=TEXT2,
+        block_label_text_color=TEXT, block_label_text_color_dark=TEXT,
+        block_title_text_color=TEXT, block_title_text_color_dark=TEXT,
+        button_primary_background_fill=ACCENT, button_primary_background_fill_dark=ACCENT,
+        button_primary_background_fill_hover="#c9a78f", button_primary_background_fill_hover_dark="#c9a78f",
+        button_primary_text_color=TEXT, button_primary_text_color_dark=TEXT,
+        input_background_fill=PARCH, input_background_fill_dark=PARCH,
+    )
+    try:
+        return t.set(**kw)
+    except Exception:
+        return t
+
+
 CSS = """
-.reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px;color:#ffffff}
-.rc{display:flex;align-items:center;gap:12px;background:#0077b6;border:1px solid #00b4d8;border-radius:10px;padding:11px 14px}
-.rk{color:#caf0f8;font-size:.82rem;width:22px;text-align:right;font-weight:700}
-.rn{color:#ffffff;font-weight:700;text-decoration:none;flex:1;font-size:.95rem}
-.rn:hover{text-decoration:underline;color:#90e0ef}
-.rg{color:#caf0f8;font-size:.78rem}
-.rs{color:#90e0ef;font-size:.82rem;font-weight:700}
+.reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px;color:#3a332c}
+.rc{display:flex;align-items:center;gap:12px;background:#e3d5ca;border:1px solid #c9b8a8;border-radius:10px;padding:11px 14px}
+.rk{color:#6f6253;font-size:.82rem;width:22px;text-align:right;font-weight:700}
+.rn{color:#3a332c;font-weight:700;text-decoration:none;flex:1;font-size:.95rem}
+.rn:hover{text-decoration:underline;color:#bc6c25}
+.rg{color:#6f6253;font-size:.78rem}
+.rs{color:#bc6c25;font-size:.82rem;font-weight:700}
 """
 
 
 def _empty_fig(msg="게임/의도를 입력하면 추론 과정이 여기 그려집니다"):
     f = go.Figure()
-    f.update_layout(template="plotly_dark", paper_bgcolor=GRAPHITE, plot_bgcolor=GRAPHITE,
+    f.update_layout(template="plotly_white", paper_bgcolor=BG, plot_bgcolor=PARCH,
                     height=460, margin=dict(l=10, r=10, t=10, b=10),
                     xaxis=dict(visible=False), yaxis=dict(visible=False),
-                    annotations=[dict(text=msg, showarrow=False, font=dict(color=ALABASTER))])
+                    annotations=[dict(text=msg, showarrow=False, font=dict(color=TEXT2))])
     return f
 
 
 def _build_fig(liked_ap, rec_ap):
-    """임베딩 2D 맵: 전체(흐림) + 즐긴 게임(별,흰색) + 추천(teal)."""
     fig = go.Figure()
     fig.add_trace(go.Scattergl(x=_map["x"], y=_map["y"], mode="markers",
-                  marker=dict(size=3, color="rgba(144,224,239,0.16)"),
+                  marker=dict(size=3, color="rgba(140,120,100,0.20)"),
                   hoverinfo="skip", showlegend=False))
     rx = [(MX[a], MY[a], NAME.get(a, a)) for a in rec_ap if a in MX]
     if rx:
         fig.add_trace(go.Scattergl(x=[p[0] for p in rx], y=[p[1] for p in rx],
                       mode="markers+text", text=[p[2] for p in rx], textposition="top center",
-                      marker=dict(size=11, color=TEAL_LT, line=dict(width=1, color=GRAPHITE)),
-                      textfont=dict(size=9, color=TEAL_LT), name="추천"))
+                      marker=dict(size=11, color=HILITE, line=dict(width=1, color="#fff")),
+                      textfont=dict(size=9, color=HILITE), name="추천"))
     lx = [(MX[a], MY[a], NAME.get(a, a)) for a in liked_ap if a in MX]
     if lx:
         fig.add_trace(go.Scattergl(x=[p[0] for p in lx], y=[p[1] for p in lx],
                       mode="markers+text", text=[p[2] for p in lx], textposition="bottom center",
-                      marker=dict(size=16, color=WHITE, symbol="star", line=dict(width=1, color=TEAL)),
-                      textfont=dict(size=10, color=WHITE), name="즐긴 게임"))
-    fig.update_layout(template="plotly_dark", paper_bgcolor=GRAPHITE, plot_bgcolor=GRAPHITE,
+                      marker=dict(size=16, color=LIKED, symbol="star", line=dict(width=1, color="#fff")),
+                      textfont=dict(size=10, color=LIKED), name="즐긴 게임"))
+    fig.update_layout(template="plotly_white", paper_bgcolor=BG, plot_bgcolor=PARCH,
                       height=460, margin=dict(l=10, r=10, t=34, b=10),
-                      title=dict(text="🧭 임베딩 공간 — 취향(흰 별)에서 추천(teal)이 나오는 과정",
-                                 font=dict(size=13, color=ALABASTER)),
+                      title=dict(text="🧭 임베딩 공간 — 취향(별)에서 추천이 나오는 과정",
+                                 font=dict(size=13, color=TEXT)),
                       xaxis=dict(visible=False), yaxis=dict(visible=False),
-                      legend=dict(orientation="h", y=1.02, x=0))
+                      legend=dict(orientation="h", y=1.02, x=0, font=dict(color=TEXT)))
     return fig
 
 
 FLOW_CSS = """
 <style>
 @keyframes fin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
-@keyframes grow{from{height:4px}to{}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 @keyframes dash{to{background-position:0 -28px}}
-.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#caf0f8;max-width:520px;margin:0 auto}
+.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#3a332c;max-width:520px;margin:0 auto}
 .flow .st{opacity:0;animation:fin .5s ease forwards}
-.flow .box{background:#0077b6;border:1px solid #00b4d8;border-radius:12px;padding:11px 14px;text-align:center}
-.flow .hd{font-size:.82rem;font-weight:700;margin-bottom:4px;color:#ffffff}
+.flow .box{background:#edede9;border:1px solid #c9b8a8;border-radius:12px;padding:11px 14px;text-align:center}
+.flow .hd{font-size:.82rem;font-weight:700;margin-bottom:4px;color:#3a332c}
 .flow .conn{width:3px;height:26px;margin:3px auto;border-radius:2px;
-  background:repeating-linear-gradient(#00b4d8 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
-.flow .chip{display:inline-block;background:#021440;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem;color:#caf0f8}
-.flow .chip.rec{background:#00b4d8;border:1px solid #90e0ef;color:#03045e;font-weight:700;opacity:0;animation:fin .4s forwards}
+  background:repeating-linear-gradient(#b08968 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
+.flow .chip{display:inline-block;background:#e3d5ca;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem;color:#3a332c}
+.flow .chip.rec{background:#bc6c25;border:1px solid #a85a18;color:#fff;font-weight:700;opacity:0;animation:fin .4s forwards}
 .flow .vec{display:inline-flex;gap:3px;margin-top:6px;height:20px;align-items:flex-end}
-.flow .vec i{width:6px;border-radius:2px;background:#90e0ef;animation:pulse 1.1s infinite}
-.flow .vec.i i{background:#caf0f8}.flow .vec.q i{background:#ffffff}
-.flow .lbl{font-size:.72rem;color:#caf0f8;margin:2px 0}
+.flow .vec i{width:6px;border-radius:2px;background:#9c6644;animation:pulse 1.1s infinite}
+.flow .vec.i i{background:#6b705c}.flow .vec.q i{background:#bc6c25}
+.flow .lbl{font-size:.72rem;color:#6f6253;margin:2px 0}
 .flow .mix{display:flex;gap:8px}.flow .mix>div{flex:1}
-.flow .mut{color:#5b7fa6}
+.flow .mut{color:#8a7d6c}
 </style>
 """
 
@@ -209,8 +214,8 @@ def recommend(liked, intent, w_intent, topn):
     liked = liked or []
     intent = (intent or "").strip()
     if not liked and not intent:
-        return ("<p style='color:#caf0f8'>게임을 선택하거나 의도를 입력하세요.</p>",
-                "<p style='color:#caf0f8'>추천을 실행하면 추론 과정이 애니메이션으로 재생됩니다.</p>",
+        return ("<p style='color:#6f6253'>게임을 선택하거나 의도를 입력하세요.</p>",
+                "<p style='color:#6f6253'>추천을 실행하면 추론 과정이 애니메이션으로 재생됩니다.</p>",
                 _empty_fig())
     n = len(cand)
     score = np.zeros(n, np.float32)
@@ -240,21 +245,28 @@ def recommend(liked, intent, w_intent, topn):
     return html, flow, fig
 
 
-# 드롭다운/입력칸 가시성 강제 (흰배경+흰글씨 겹침 방지)
-GLOBAL_CSS = """
-input, textarea { color:#caf0f8 !important; background:#021440 !important; }
-input::placeholder, textarea::placeholder { color:#7fa8c9 !important; }
-ul.options { background:#021440 !important; border:1px solid #00b4d8 !important; }
-ul.options li, li.item, .options .item { background:#021440 !important; color:#caf0f8 !important; }
-ul.options li:hover, li.item:hover, .item.selected, .item.active { background:#0077b6 !important; color:#ffffff !important; }
-.token, span.token { background:#00b4d8 !important; color:#03045e !important; }
-.token .token-remove, .token svg { color:#03045e !important; fill:#03045e !important; }
-"""
+def epoch_fig(ep):
+    """학습 과정 — 슬라이더가 가리키는 에폭의 임베딩 산점도 (모바일 친화: 슬라이더 드래그)."""
+    ep = int(ep)
+    f = TRAIN["frames"][ep]
+    bnd = TRAIN["bounds"]
+    loss = TRAIN["losses"][ep - 1] if ep > 0 else "—"
+    fig = go.Figure(go.Scattergl(
+        x=[p[0] for p in f], y=[p[1] for p in f], mode="markers",
+        marker=dict(size=5, color=_gcolor), text=TRAIN["names"], hoverinfo="text", showlegend=False))
+    fig.update_layout(template="plotly_white", paper_bgcolor=BG, plot_bgcolor=PARCH, height=440,
+                      margin=dict(l=10, r=10, t=40, b=10),
+                      title=dict(text=f"에폭 {ep} · 대조손실 {loss} — 게임 임베딩 군집화 (점=게임, 색=장르)",
+                                 font=dict(color=TEXT, size=12)),
+                      xaxis=dict(visible=False, range=[bnd["xlo"], bnd["xhi"]]),
+                      yaxis=dict(visible=False, range=[bnd["ylo"], bnd["yhi"]]))
+    return fig
+
 
 ARCH_HTML = """
-<style>.arch{color:#caf0f8;font-size:.86rem}.arch .row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:5px 0}
-.arch .nd{background:#021440;border:1px solid #00b4d8;border-radius:8px;padding:7px 11px;font-size:.8rem;text-align:center}
-.arch .nd b{color:#fff}.arch .ar{color:#00b4d8;font-weight:700}.arch .nt{color:#90e0ef;font-size:.76rem;margin-top:8px}</style>
+<style>.arch{color:#3a332c;font-size:.86rem}.arch .row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:5px 0}
+.arch .nd{background:#edede9;border:1px solid #c9b8a8;border-radius:8px;padding:7px 11px;font-size:.8rem;text-align:center}
+.arch .nd b{color:#3a332c}.arch .ar{color:#9c6644;font-weight:700}.arch .nt{color:#6f6253;font-size:.76rem;margin-top:8px}</style>
 <div class="arch">
 <div class="row"><div class="nd">게임 A<br><b>(앵커)</b></div><div class="nd">게임 B<br><b>(양성쌍)</b></div></div>
 <div class="row"><span class="ar">↓ 임베딩 룩업</span></div>
@@ -266,42 +278,16 @@ ARCH_HTML = """
 · 추천 = 협업(취향) + 콘텐츠(의도) 가중 결합 → 하이브리드</div></div>
 """
 
-
-def _training_fig():
-    """학습 과정 애니메이션 — 에폭별 임베딩이 군집 형성 (Plotly frames)."""
-    import json
-    d = json.loads((ROOT / "training_frames.json").read_text(encoding="utf-8"))
-    fr, gen, nm, bnd = d["frames"], d["genres"], d["names"], d["bounds"]
-    gset = list(dict.fromkeys(gen))
-    pal = ["#00b4d8", "#90e0ef", "#caf0f8", "#48cae4", "#ade8f4", "#0096c7",
-           "#0077b6", "#48cae4", "#90e0ef", "#caf0f8", "#00b4d8"]
-    colors = [pal[gset.index(g) % len(pal)] for g in gen]
-
-    def sc(f):
-        return go.Scattergl(x=[p[0] for p in f], y=[p[1] for p in f], mode="markers",
-                            marker=dict(size=4, color=colors), text=nm, hoverinfo="text",
-                            showlegend=False)
-
-    fig = go.Figure(data=[sc(fr[0])],
-                    frames=[go.Frame(data=[sc(f)], name=str(i)) for i, f in enumerate(fr)])
-    steps = [dict(method="animate", label=str(i),
-                  args=[[str(i)], dict(frame=dict(duration=0, redraw=True), mode="immediate")])
-             for i in range(len(fr))]
-    fig.update_layout(
-        template="plotly_dark", paper_bgcolor=GRAPHITE, plot_bgcolor="#021440", height=440,
-        margin=dict(l=10, r=10, t=44, b=10),
-        title=dict(text="학습 진행 → 게임 임베딩이 군집을 형성 (점=게임, 색=장르)",
-                   font=dict(color=ALABASTER, size=12)),
-        xaxis=dict(visible=False, range=[bnd["xlo"], bnd["xhi"]]),
-        yaxis=dict(visible=False, range=[bnd["ylo"], bnd["yhi"]]),
-        updatemenus=[dict(type="buttons", showactive=False, x=0, y=1.12, bgcolor=TEAL,
-            buttons=[dict(label="▶ 재생", method="animate",
-                args=[None, dict(frame=dict(duration=350, redraw=True), fromcurrent=True,
-                                 transition=dict(duration=300))])])],
-        sliders=[dict(active=0, x=0, y=0, len=1, currentvalue=dict(prefix="에폭 "), steps=steps)],
-    )
-    return fig
-
+# 입력칸/드롭다운 가시성 (밝은 배경 + 다크 글자)
+GLOBAL_CSS = """
+input, textarea { color:#3a332c !important; background:#ffffff !important; }
+input::placeholder, textarea::placeholder { color:#9a8d7c !important; }
+ul.options { background:#ffffff !important; border:1px solid #c9b8a8 !important; }
+ul.options li, li.item, .options .item { background:#ffffff !important; color:#3a332c !important; }
+ul.options li:hover, li.item:hover, .item.selected, .item.active { background:#e3d5ca !important; color:#3a332c !important; }
+.token, span.token { background:#d5bdaf !important; color:#3a332c !important; }
+.token .token-remove, .token svg { color:#3a332c !important; fill:#3a332c !important; }
+"""
 
 with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
     gr.Markdown("# 🎮 SteamFit — Steam 게임 추천\n"
@@ -327,9 +313,11 @@ with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
             btn.click(recommend, [liked, intent, w_intent, topn], [out, out_flow, out_plot])
         with gr.Tab("🎬 학습 과정"):
             gr.Markdown("### 대조학습으로 임베딩이 군집을 형성하는 과정\n"
-                        "**▶ 재생**을 누르면 무작위로 흩어진 게임들이 에폭마다 군집으로 뭉칩니다. "
-                        "슬라이더로 에폭 이동도 가능.")
-            gr.Plot(value=_training_fig())
+                        "**아래 슬라이더를 드래그**하면 에폭이 진행되며 무작위로 흩어진 게임들이 "
+                        "군집으로 뭉칩니다. (모바일에서도 동작)")
+            ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1, label="에폭 — 드래그해서 학습 진행 보기")
+            train_plot = gr.Plot(value=epoch_fig(0))
+            ep_slider.change(epoch_fig, ep_slider, train_plot)
             gr.Markdown("#### 🧩 모델 구조 (대조학습)")
             gr.HTML(ARCH_HTML)
     gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰</small>")
