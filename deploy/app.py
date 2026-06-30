@@ -86,11 +86,35 @@ def _norm(v):
     return (v - v.min()) / (v.max() - v.min() + 1e-9)
 
 
-def _genres(a):
+def _genre_list(a):
     try:
-        return ", ".join(json.loads(GENRE.get(a) or "[]")[:3])
+        return json.loads(GENRE.get(a) or "[]")
     except Exception:
-        return ""
+        return []
+
+
+def _genres(a):
+    return ", ".join(_genre_list(a)[:3])
+
+
+def _reason_badges(a, r, cooc_src, liked_genres, intent, intent_s, intent_hi):
+    """추천 카드의 '왜 이 게임인지' 근거 칩 — 공동플레이·공유장르·의도부합."""
+    bs = []
+    src = cooc_src.get(r)
+    if src:
+        bs.append(f'<span class="rb play">🎮 {NAME.get(src[0], src[0])} 플레이어가 함께 즐김</span>')
+    rg = _genre_list(a)
+    shared = [g for g in rg if g in liked_genres][:2]
+    if shared:
+        bs.append(f'<span class="rb">🏷 {", ".join(shared)} 취향 일치</span>')
+    elif not liked_genres and rg:
+        bs.append(f'<span class="rb">🏷 {", ".join(rg[:2])}</span>')
+    if intent and intent_s is not None and intent_hi is not None and intent_s[r] >= intent_hi:
+        bs.append('<span class="rb intent">🧭 의도 부합</span>')
+    if not bs:
+        g = _genres(a)
+        bs.append(f'<span class="rb">🏷 {g}</span>' if g else '<span class="rb">추천</span>')
+    return "".join(bs[:3])
 
 
 _namecount = Counter(NAME.get(a, "?") for a in cand)
@@ -127,9 +151,13 @@ CSS = """
 .reclist{display:flex;flex-direction:column;gap:8px;margin-top:6px;color:#3a332c}
 .rc{display:flex;align-items:center;gap:12px;background:#e3d5ca;border:1px solid #c9b8a8;border-radius:10px;padding:11px 14px}
 .rk{color:#6f6253;font-size:.82rem;width:22px;text-align:right;font-weight:700}
-.rn{color:#3a332c;font-weight:700;text-decoration:none;flex:1;font-size:.95rem}
+.rc-main{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.rn{color:#3a332c;font-weight:700;text-decoration:none;font-size:.95rem}
 .rn:hover{text-decoration:underline;color:#bc6c25}
-.rg{color:#6f6253;font-size:.78rem}
+.rr{display:flex;flex-wrap:wrap;gap:5px}
+.rb{font-size:.72rem;color:#6f6253;background:#edede9;border:1px solid #d6ccc2;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.rb.play{color:#7d5a3c;background:#f0e6dc;border-color:#d8c3ae}
+.rb.intent{color:#9c5410;background:#f3e6d6;border-color:#e0c39c}
 .rs{color:#bc6c25;font-size:.82rem;font-weight:700}
 """
 
@@ -238,6 +266,11 @@ def recommend(liked, intent, w_intent, topn):
     score = np.zeros(n, np.float32)
     rows = [cand_idx[a] for a in liked if a in cand_idx]
     w = float(w_intent)
+    cooc_src = {}                       # 후보idx → (공동플레이 기여 1위 즐긴게임 appid, 가중치)
+    liked_genres = set()
+    for a in liked:
+        if a in cand_idx:
+            liked_genres |= set(_genre_list(a))
     if rows:
         # 취향 = item2vec 코사인 + 공동플레이(cooc)를 RRF(랭크 융합)로 결합 → 스케일에 강건
         emb_s = collab_n @ (collab_n[rows].mean(0) / (np.linalg.norm(collab_n[rows].mean(0)) + 1e-9))
@@ -250,11 +283,16 @@ def recommend(liked, intent, w_intent, topn):
                 ci = cand_idx.get(int(nbr))
                 if ci is not None:
                     cooc_s[ci] += wv
+                    if wv > cooc_src.get(ci, (0, 0.0))[1]:
+                        cooc_src[ci] = (int(a), float(wv))   # 근거 표시용 출처 추적
         taste = 1.0 / (60 + _ranks(emb_s)) + 1.0 / (60 + _ranks(cooc_s))
         score += (1 - w) * _norm(taste)
+    intent_s = None
     if intent:
         qi = encoder().encode(intent, normalize_embeddings=True)
-        score += w * _norm(content_c @ qi)
+        intent_s = content_c @ qi
+        score += w * _norm(intent_s)
+    intent_hi = float(np.quantile(intent_s, 0.75)) if intent_s is not None else None  # 상위25% 의도매칭만 '의도 부합'
     for r in rows:
         score[r] = -np.inf
     top = np.argsort(-score)[: int(topn)]
@@ -262,9 +300,11 @@ def recommend(liked, intent, w_intent, topn):
     out = []
     for i, r in enumerate(top, 1):
         a = cand[r]; url = f"https://store.steampowered.com/app/{a}"
+        reasons = _reason_badges(a, int(r), cooc_src, liked_genres, intent, intent_s, intent_hi)
         out.append(f'<div class="rc"><span class="rk">{i}</span>'
+                   f'<div class="rc-main">'
                    f'<a class="rn" href="{url}" target="_blank">{NAME.get(a,a)}</a>'
-                   f'<span class="rg">{_genres(a)}</span>'
+                   f'<div class="rr">{reasons}</div></div>'
                    f'<span class="rs">{score[r]:.3f}</span></div>')
     html = f"<style>{CSS}</style><div class='reclist'>" + "".join(out) + "</div>"
     liked_in = [a for a in liked if a in cand_idx]
