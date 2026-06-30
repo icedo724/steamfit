@@ -255,6 +255,59 @@ def _flow_html(liked_names, intent, w_intent, rec_names):
 </div>"""
 
 
+# 한국어 게임 외래어 → 영어 Steam 태그/용어 사전.
+#   진단: 게임은 보편적 영어 태그(Souls-like 등)를 가져 영어 검색은 정확하나,
+#   한국어 외래어("소울라이크")가 그 태그에 안 붙음. 쿼리에 영어 표준어를 병기해
+#   검증된 영어 경로로 결정론적 라우팅(무재학습).
+GAMING_GLOSSARY = {
+    # 세부 장르 외래어 (영어 태그로 직행)
+    "소울라이크": "Souls-like", "소울라이트": "Souls-like", "소울류": "Souls-like",
+    "메트로배니아": "Metroidvania", "메트로바니아": "Metroidvania",
+    "로그라이크": "Roguelike", "로그라이트": "Roguelite", "로그라잇": "Roguelike",
+    "핵앤슬래시": "Hack and Slash", "핵슬": "Hack and Slash", "디아블로류": "Action RPG Hack and Slash",
+    "타워디펜스": "Tower Defense", "디펜스": "Tower Defense",
+    "방치형": "Idle", "방치": "Idle", "클리커": "Clicker", "클릭커": "Clicker",
+    "비주얼노벨": "Visual Novel", "비주얼 노벨": "Visual Novel", "미연시": "Dating Sim", "연애시뮬": "Dating Sim",
+    "덱빌딩": "Deckbuilding", "덱빌더": "Deckbuilding", "카드게임": "Card Game",
+    "탑다운": "Top-Down", "쿼터뷰": "Isometric", "아이소메트릭": "Isometric",
+    "턴제": "Turn-Based", "실시간전략": "Real-Time Strategy", "알티에스": "Real-Time Strategy",
+    "도트": "Pixel Graphics", "도트그래픽": "Pixel Graphics", "픽셀": "Pixel Graphics", "픽셀아트": "Pixel Graphics",
+    "샌드박스": "Sandbox", "오픈월드": "Open World", "오픈 월드": "Open World",
+    "생존공포": "Survival Horror", "생존": "Survival", "서바이벌": "Survival",
+    "크래프팅": "Crafting", "제작": "Crafting", "도시건설": "City Builder", "건설": "Building",
+    "공포": "Horror", "호러": "Horror", "좀비": "Zombies",
+    "협동": "Co-op", "코옵": "Co-op", "코업": "Co-op",
+    "멀티플레이": "Multiplayer", "싱글플레이": "Singleplayer",
+    "배틀로얄": "Battle Royale", "배틀로열": "Battle Royale",
+    "모바": "MOBA", "에이오에스": "MOBA",
+    "에프피에스": "FPS", "1인칭슈팅": "FPS", "3인칭": "Third Person", "삼인칭": "Third Person",
+    "슈팅": "Shooter", "슈터": "Shooter", "탄막": "Bullet Hell", "불릿헬": "Bullet Hell",
+    "플랫포머": "Platformer", "플랫폼게임": "Platformer",
+    "격투": "Fighting", "대전격투": "Fighting",
+    "레이싱": "Racing", "리듬게임": "Rhythm", "리듬": "Rhythm",
+    "퍼즐": "Puzzle", "방탈출": "Escape Room", "추리": "Detective Mystery",
+    "잠입": "Stealth", "스텔스": "Stealth",
+    "경영시뮬": "Management Simulation", "경영": "Management", "농장": "Farming Sim", "농사": "Farming Sim",
+    "수집형": "Collectathon", "가챠": "Gacha",
+    "오토배틀러": "Auto Battler", "오토체스": "Auto Battler", "자동전투": "Auto Battler",
+    "비대칭": "Asymmetric",
+    "제이알피지": "JRPG", "알피지": "RPG", "시뮬레이션": "Simulation", "시뮬": "Simulation",
+    "어드벤처": "Adventure", "액션": "Action", "전략": "Strategy", "인디": "Indie", "캐주얼": "Casual",
+    # 커뮤니티 표현
+    "명작": "critically acclaimed", "띵작": "critically acclaimed", "갓겜": "critically acclaimed",
+    "노가다": "Grinding", "그라인딩": "Grinding", "하드코어": "Hardcore Difficult", "고난도": "Difficult",
+}
+
+
+def _expand_intent(text):
+    """의도 텍스트에 매칭된 외래어의 영어 표준어를 병기(중복 제거). 원문은 보존."""
+    hits = []
+    for ko, en in GAMING_GLOSSARY.items():
+        if ko in text and en not in hits:
+            hits.append(en)
+    return f"{text}  {' '.join(hits)}" if hits else text
+
+
 def recommend(liked, intent, w_intent, topn):
     liked = liked or []
     intent = (intent or "").strip()
@@ -289,7 +342,7 @@ def recommend(liked, intent, w_intent, topn):
         score += (1 - w) * _norm(taste)
     intent_s = None
     if intent:
-        qi = encoder().encode(intent, normalize_embeddings=True)
+        qi = encoder().encode(_expand_intent(intent), normalize_embeddings=True)
         intent_s = content_c @ qi
         score += w * _norm(intent_s)
     intent_hi = float(np.quantile(intent_s, 0.75)) if intent_s is not None else None  # 상위25% 의도매칭만 '의도 부합'
