@@ -71,6 +71,13 @@ N_EPOCHS = len(TRAIN["frames"]) - 1
 _clusters = TRAIN.get("clusters") or [0] * len(TRAIN["names"])
 _gcolor = [GENRE_PAL[c % len(GENRE_PAL)] for c in _clusters]   # 색 = 협업 '이웃 그룹'(KMeans)
 
+# 파라미터 플레이그라운드용 소형 학습 데이터(상위 400게임 공동플레이 쌍) — 실시간 CPU 학습용
+_pg = np.load(ROOT / "playground.npz", allow_pickle=False)
+PG_PAIRS = _pg["pairs"]
+PG_NAMES = [str(x) for x in _pg["names"]]
+PG_CLUSTERS = _pg["clusters"].tolist()
+PG_N = len(PG_NAMES)
+
 _encoder = None
 
 
@@ -409,24 +416,86 @@ def recommend(liked, intent, w_intent, topn):
     return html, flow, fig
 
 
-def epoch_fig(ep):
-    """학습 진행 슬라이더 — 선별 스냅샷의 UMAP 궤적(게임이 '이웃'으로 뭉치는 실제 과정)."""
-    ep = int(ep)
-    f = TRAIN["frames"][ep]
-    bnd = TRAIN["bounds"]
-    loss = TRAIN["losses"][ep] if ep < len(TRAIN["losses"]) else None
-    sub = "🎲 랜덤 초기화 (학습 전)" if loss is None else f"대조손실 {loss}"
+def _traj_fig(frame, colors, names, title, bnd=(-1, 1, -1, 1)):
     fig = go.Figure(go.Scattergl(
-        x=[p[0] for p in f], y=[p[1] for p in f], mode="markers",
-        marker=dict(size=6, color=_gcolor, line=dict(width=0)),
-        text=TRAIN["names"], hoverinfo="text", showlegend=False))
+        x=[p[0] for p in frame], y=[p[1] for p in frame], mode="markers",
+        marker=dict(size=6, color=colors, line=dict(width=0)),
+        text=names, hoverinfo="text", showlegend=False))
     fig.update_layout(template="plotly_white", paper_bgcolor=BG, plot_bgcolor=PARCH, height=440,
                       margin=dict(l=10, r=10, t=40, b=10),
-                      title=dict(text=f"학습 진행 {ep}/{N_EPOCHS} · {sub} — 게임들이 '이웃'으로 뭉치는 실제 궤적 (색=이웃 그룹)",
-                                 font=dict(color=TEXT, size=12)),
-                      xaxis=dict(visible=False, range=[bnd["xlo"], bnd["xhi"]]),
-                      yaxis=dict(visible=False, range=[bnd["ylo"], bnd["yhi"]]))
+                      title=dict(text=title, font=dict(color=TEXT, size=12)),
+                      xaxis=dict(visible=False, range=[bnd[0], bnd[1]]),
+                      yaxis=dict(visible=False, range=[bnd[2], bnd[3]]))
     return fig
+
+
+_TB = (TRAIN["bounds"]["xlo"], TRAIN["bounds"]["xhi"], TRAIN["bounds"]["ylo"], TRAIN["bounds"]["yhi"])
+REAL_PARAMS = "차원 32 · 학습률 2e-3 · 배치 1024 · InfoNCE(temp 0.07) · Adam"
+
+
+def epoch_fig(ep):
+    """학습 진행 슬라이더 — 선별 스냅샷의 실제 궤적(게임이 '이웃'으로 뭉치는 과정)."""
+    ep = int(ep)
+    loss = TRAIN["losses"][ep] if ep < len(TRAIN["losses"]) else None
+    sub = "🎲 랜덤 초기화 (학습 전)" if loss is None else f"대조손실 {loss}"
+    return _traj_fig(TRAIN["frames"][ep], _gcolor, TRAIN["names"],
+                     f"학습 진행 {ep}/{N_EPOCHS} · {sub} — '이웃 그룹'으로 뭉치는 실제 궤적 (색=이웃)", _TB)
+
+
+def autoplay_real():
+    """실제 파라미터로 학습된 궤적을 튜토리얼처럼 자동재생(Gradio 제너레이터)."""
+    import time
+    n = len(TRAIN["frames"])
+    for i in range(n):
+        loss = TRAIN["losses"][i]
+        sub = "🎲 랜덤 초기화" if loss is None else f"대조손실 {loss}"
+        yield _traj_fig(TRAIN["frames"][i], _gcolor, TRAIN["names"],
+                        f"▶ 자동재생 {i}/{n - 1} · {sub}  ⟨{REAL_PARAMS}⟩", _TB)
+        time.sleep(0.5)
+
+
+def train_live(dim, lr, epochs, temp):
+    """직접 지정한 하이퍼파라미터로 Space(CPU)에서 실시간 소형 학습 → 자동재생(제너레이터)."""
+    import time
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    dim, epochs, lr, temp = int(dim), int(epochs), float(lr), float(temp)
+    yield _empty_fig(f"⏳ 학습 중… (상위 400게임 · 차원 {dim} · {epochs}에폭, 약 2초)")
+    torch.set_num_threads(2)
+    P = torch.tensor(PG_PAIRS.astype("int64"))
+    emb = nn.Embedding(PG_N, dim)
+    nn.init.normal_(emb.weight, std=0.35)
+    opt = torch.optim.Adam(emb.parameters(), lr=lr)
+    snaps = [emb.weight.detach().numpy().copy()]
+    for _ in range(epochs):
+        perm = torch.randperm(P.size(0))
+        for i in range(0, P.size(0), 512):
+            ix = perm[i:i + 512]
+            ea = F.normalize(emb(P[ix, 0]), dim=1)
+            eb = F.normalize(emb(P[ix, 1]), dim=1)
+            lo = ea @ eb.t() / temp
+            lab = torch.arange(ea.size(0))
+            loss = 0.5 * (F.cross_entropy(lo, lab) + F.cross_entropy(lo.t(), lab))
+            opt.zero_grad(); loss.backward(); opt.step()
+        snaps.append(emb.weight.detach().numpy().copy())
+
+    def nrm(x):
+        return x / (np.linalg.norm(x, axis=1, keepdims=True) + 1e-9)
+    Ff = nrm(snaps[-1]); mu = Ff.mean(0)
+    _, _, Vt = np.linalg.svd(Ff - mu, full_matrices=False)
+    comp = Vt[:2].T
+    proj = [(nrm(s) - mu) @ comp for s in snaps]
+    allp = np.concatenate(proj); lo2, hi2 = allp.min(0), allp.max(0)
+    proj = [2 * (p - lo2) / (hi2 - lo2 + 1e-9) - 1 for p in proj]
+    cols = [GENRE_PAL[c % len(GENRE_PAL)] for c in PG_CLUSTERS]
+    tag = f"차원 {dim} · 학습률 {lr:g} · temp {temp:g}"
+    n = len(proj)
+    for i in range(n):
+        stage = "🎲 랜덤 초기화" if i == 0 else f"{i}/{epochs} 에폭"
+        yield _traj_fig(proj[i].tolist(), cols, PG_NAMES,
+                        f"🎛 {stage}  ⟨{tag}⟩ — 파라미터가 군집에 주는 영향", (-1, 1, -1, 1))
+        time.sleep(0.45)
 
 
 ARCH_HTML = """
@@ -578,15 +647,32 @@ with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
                         "용어 없이 — 아래 애니메이션만 보면 학습 원리가 한눈에 들어옵니다. (자동 반복)")
             gr.HTML(LEARN_ANIM)
             with gr.Accordion("🔬 실제 학습 데이터로 보기 (자세히)", open=False):
-                gr.Markdown("위 비유가 **실제로** 일어난 궤적입니다. **슬라이더를 왼→오른쪽으로 드래그**하면 "
-                            "랜덤으로 흩어진 900개 게임이 학습을 거치며 **‘이웃 그룹’(색)으로 뭉치는 실제 과정**이 보입니다. "
-                            "(협업 임베딩을 UMAP으로 투영 · 점 위에 마우스=게임명)")
-                ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1,
-                                      label="학습 진행 — 드래그 (0=랜덤 초기 → 끝=군집 형성)")
+                gr.Markdown("위 비유가 **실제로** 일어난 궤적입니다. 900개 게임이 학습을 거치며 "
+                            "**‘이웃 그룹’(색)으로 뭉치는 과정**을 자동재생하거나, 직접 파라미터를 바꿔 학습시켜 보세요. "
+                            "(협업 임베딩을 2D로 투영 · 점 위에 마우스=게임명)")
+                with gr.Row():
+                    btn_auto = gr.Button("▶ 실제 학습 과정 자동재생", variant="primary")
+                    btn_play = gr.Button("🎛 직접 파라미터 지정해보기")
                 train_plot = gr.Plot(value=epoch_fig(0))
-                ep_slider.change(epoch_fig, ep_slider, train_plot)
+                ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1,
+                                      label="또는 직접 드래그 — 학습 진행 (0=랜덤 → 끝=군집)")
+                with gr.Group(visible=False) as pg_group:
+                    gr.Markdown("#### 🎛 파라미터 플레이그라운드 — 상위 400게임 실시간 학습(~2초)\n"
+                                "값을 바꿔 **실행**하면 하이퍼파라미터가 군집 형성에 주는 영향을 직접 볼 수 있어요.")
+                    with gr.Row():
+                        dim_s = gr.Slider(8, 64, value=32, step=8, label="임베딩 차원 (dim)")
+                        temp_s = gr.Slider(0.05, 0.5, value=0.1, step=0.05, label="Temperature (↓일수록 뭉침↑)")
+                    with gr.Row():
+                        lr_s = gr.Dropdown(["0.001", "0.003", "0.01", "0.03"], value="0.003", label="학습률 (lr)")
+                        ep_s = gr.Slider(4, 20, value=12, step=1, label="에폭 (epochs)")
+                    run_btn = gr.Button("🚀 이 설정으로 학습 실행", variant="primary")
                 gr.Markdown("#### 🧩 모델 구조 (대조학습)")
                 gr.HTML(ARCH_HTML)
+
+                ep_slider.change(epoch_fig, ep_slider, train_plot)
+                btn_auto.click(autoplay_real, None, train_plot)
+                btn_play.click(lambda: gr.update(visible=True), None, pg_group)
+                run_btn.click(train_live, [dim_s, lr_s, ep_s, temp_s], train_plot)
     gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰</small>")
 
 
