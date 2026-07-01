@@ -400,6 +400,102 @@ ARCH_HTML = """
 · 추천 = 협업(취향) + 콘텐츠(의도) 가중 결합 → 하이브리드</div></div>
 """
 
+# 비전공자용 자동재생 애니메이션 — "AI가 비슷한 게임을 배우는 과정"(용어 없이 비유).
+#   순수 CSS 키프레임(JS 불필요, 모바일 자동재생). 클래스는 la- 로 네임스페이스(Gradio 충돌 방지).
+LEARN_ANIM = """
+<div class="la-wrap">
+  <h2 class="la-sr">AI가 게임 추천을 학습하는 과정: 같은 사람이 함께 즐긴 게임을 서로 가까이 끌어당겨 '동네'(군집)를 만들고, 내가 좋아한 게임의 동네에서 이웃 게임을 추천합니다.</h2>
+  <div class="la-title">🧠 AI는 어떻게 <b>&ldquo;비슷한 게임&rdquo;</b>을 배울까?</div>
+  <div class="la-scene">
+    <svg viewBox="0 0 640 320" role="img" xmlns="http://www.w3.org/2000/svg">
+      <title>AI가 게임을 군집으로 학습하는 과정</title>
+      <g class="la-labels">
+        <rect x="70" y="278" width="118" height="26" rx="13" fill="#9c6644"/>
+        <text x="129" y="295" class="la-lbl">🎮 액션 동네</text>
+        <rect x="270" y="30" width="120" height="26" rx="13" fill="#5c6b73"/>
+        <text x="330" y="47" class="la-lbl">👻 공포 동네</text>
+        <rect x="442" y="278" width="118" height="26" rx="13" fill="#606c38"/>
+        <text x="501" y="295" class="la-lbl">🌱 농장 동네</text>
+      </g>
+      <g class="la-dot" style="--dx:-350px;--dy:160px"><circle cx="480" cy="90"  r="10" fill="#9c6644"/></g>
+      <g class="la-dot" style="--dx:-140px;--dy:10px"><circle cx="300" cy="250" r="10" fill="#9c6644"/></g>
+      <g class="la-dot" style="--dx:40px;--dy:180px"><circle cx="90"  cy="60"  r="10" fill="#9c6644"/></g>
+      <g class="la-dot" style="--dx:-390px;--dy:-60px"><circle cx="560" cy="290" r="10" fill="#9c6644"/></g>
+      <g class="la-dot" style="--dx:200px;--dy:-90px"><circle cx="120" cy="210" r="10" fill="#5c6b73"/></g>
+      <g class="la-dot" style="--dx:-195px;--dy:-95px"><circle cx="540" cy="210" r="10" fill="#5c6b73"/></g>
+      <g class="la-dot" style="--dx:75px;--dy:-190px"><circle cx="250" cy="300" r="10" fill="#5c6b73"/></g>
+      <g class="la-dot" style="--dx:-80px;--dy:95px"><circle cx="420" cy="40"  r="10" fill="#5c6b73"/></g>
+      <g class="la-dot" style="--dx:410px;--dy:-45px"><circle cx="80"  cy="290" r="10" fill="#606c38"/></g>
+      <g class="la-dot" style="--dx:165px;--dy:190px"><circle cx="350" cy="70"  r="10" fill="#606c38"/></g>
+      <g class="la-dot" style="--dx:300px;--dy:140px"><circle cx="200" cy="130" r="10" fill="#606c38"/></g>
+      <g class="la-dot" style="--dx:-80px;--dy:125px"><circle cx="600" cy="110" r="10" fill="#606c38"/></g>
+      <g class="la-pull">
+        <line x1="480" y1="90" x2="300" y2="250" stroke="#bc6c25" stroke-width="2.5" stroke-dasharray="6 5"/>
+        <rect x="330" y="150" width="150" height="28" rx="14" fill="#bc6c25"/>
+        <text x="405" y="169" class="la-badge">👥 같이 즐긴 사람</text>
+      </g>
+      <g class="la-reco">
+        <circle class="la-ring" cx="501" cy="250" r="18" fill="none" stroke="#bc6c25" stroke-width="2.5"/>
+        <text x="501" y="256" class="la-star">⭐</text>
+        <rect x="446" y="205" width="110" height="24" rx="12" fill="#3a332c"/>
+        <text x="501" y="222" class="la-mine">내가 좋아한 게임</text>
+        <line x1="501" y1="250" x2="470" y2="245" stroke="#bc6c25" stroke-width="3"/>
+        <line x1="501" y1="250" x2="515" y2="260" stroke="#bc6c25" stroke-width="3"/>
+        <rect x="548" y="238" width="78" height="24" rx="12" fill="#606c38"/>
+        <text x="587" y="255" class="la-pick">추천 &check;</text>
+      </g>
+    </svg>
+  </div>
+  <div class="la-caps">
+    <div class="la-cap la-c1">① 처음엔 AI도 몰라요 — 어떤 게임이 비슷한지 몰라 뒤죽박죽 흩어져 있죠.</div>
+    <div class="la-cap la-c2">② &ldquo;같은 사람이 <b>둘 다</b> 즐겼네?&rdquo; — 이런 게임 쌍을 발견하면&hellip;</div>
+    <div class="la-cap la-c3">③ 그 두 게임을 <b>서로 가까이 끌어당깁니다.</b> (상관없는 건 멀어지고요)</div>
+    <div class="la-cap la-c4">④ 수백만 번 반복하면 — 비슷한 게임끼리 <b>&lsquo;동네&rsquo;</b>가 생겨요.</div>
+    <div class="la-cap la-c5">⑤ 추천 = <b>내 게임의 &lsquo;동네&rsquo;</b>에서 이웃을 골라주는 것! 🎯</div>
+  </div>
+  <div class="la-hint">▶ 자동 반복 재생 — 사람이 함께 즐긴 게임을 모아 &lsquo;동네&rsquo;를 만드는 게 학습의 전부예요</div>
+</div>
+<style>
+.la-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.la-wrap{background:#f5ebe0;border:1px solid #d6ccc2;border-radius:16px;padding:16px 14px 12px;max-width:660px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#3a332c}
+.la-title{text-align:center;font-size:1.12rem;font-weight:800;margin-bottom:6px;color:#3a332c}
+.la-title b{color:#bc6c25}
+.la-scene{background:#edede9;border:1px solid #d6ccc2;border-radius:12px}
+.la-scene svg{display:block;width:100%;height:auto;animation:la_scene 16s linear infinite}
+.la-dot{animation:la_gather 16s ease-in-out infinite}
+.la-dot circle{filter:drop-shadow(0 1px 1px rgba(58,51,44,.18))}
+.la-labels{opacity:0;animation:la_labels 16s ease infinite}
+.la-lbl{fill:#fff;font-size:14px;font-weight:800;text-anchor:middle}
+.la-pull{opacity:0;animation:la_pull 16s ease infinite}
+.la-badge{fill:#fff;font-size:13px;font-weight:800;text-anchor:middle}
+.la-reco{opacity:0;animation:la_reco 16s ease infinite}
+.la-star{font-size:22px;text-anchor:middle}
+.la-mine{fill:#fff;font-size:12px;font-weight:700;text-anchor:middle}
+.la-pick{fill:#fff;font-size:13px;font-weight:800;text-anchor:middle}
+.la-ring{animation:la_ring 1.3s ease-in-out infinite}
+.la-caps{position:relative;height:54px;margin-top:10px}
+.la-cap{position:absolute;left:0;right:0;text-align:center;font-size:.98rem;line-height:1.35;opacity:0;padding:0 6px;color:#3a332c}
+.la-cap b{color:#bc6c25}
+.la-c1{animation:la_cap1 16s ease infinite}
+.la-c2{animation:la_cap2 16s ease infinite}
+.la-c3{animation:la_cap3 16s ease infinite}
+.la-c4{animation:la_cap4 16s ease infinite}
+.la-c5{animation:la_cap5 16s ease infinite}
+.la-hint{text-align:center;font-size:.76rem;color:#6f6253;margin-top:8px}
+@keyframes la_scene{0%{opacity:0}3%{opacity:1}94%{opacity:1}99%{opacity:0}100%{opacity:0}}
+@keyframes la_gather{0%,30%{transform:translate(0,0)}48%,100%{transform:translate(var(--dx),var(--dy))}}
+@keyframes la_pull{0%,12%{opacity:0}16%,29%{opacity:1}33%,100%{opacity:0}}
+@keyframes la_labels{0%,46%{opacity:0}54%,100%{opacity:1}}
+@keyframes la_reco{0%,68%{opacity:0}75%,94%{opacity:1}99%,100%{opacity:0}}
+@keyframes la_ring{0%,100%{opacity:.3;transform:scale(.9);transform-origin:501px 250px}50%{opacity:1;transform:scale(1.15);transform-origin:501px 250px}}
+@keyframes la_cap1{0%,11%{opacity:1}15%,100%{opacity:0}}
+@keyframes la_cap2{0%,13%{opacity:0}17%,28%{opacity:1}31%,100%{opacity:0}}
+@keyframes la_cap3{0%,29%{opacity:0}34%,46%{opacity:1}49%,100%{opacity:0}}
+@keyframes la_cap4{0%,47%{opacity:0}55%,67%{opacity:1}71%,100%{opacity:0}}
+@keyframes la_cap5{0%,69%{opacity:0}76%,93%{opacity:1}97%,100%{opacity:0}}
+</style>
+"""
+
 # 입력칸/드롭다운 가시성 (밝은 배경 + 다크 글자)
 GLOBAL_CSS = """
 input, textarea { color:#3a332c !important; background:#ffffff !important; }
@@ -434,14 +530,17 @@ with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
                 out_plot = gr.Plot()
             btn.click(recommend, [liked, intent, w_intent, topn], [out, out_flow, out_plot])
         with gr.Tab("🎬 학습 과정"):
-            gr.Markdown("### 대조학습으로 임베딩이 군집을 형성하는 과정\n"
-                        "**아래 슬라이더를 드래그**하면 에폭이 진행되며 무작위로 흩어진 게임들이 "
-                        "군집으로 뭉칩니다. (모바일에서도 동작)")
-            ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1, label="에폭 — 드래그해서 학습 진행 보기")
-            train_plot = gr.Plot(value=epoch_fig(0))
-            ep_slider.change(epoch_fig, ep_slider, train_plot)
-            gr.Markdown("#### 🧩 모델 구조 (대조학습)")
-            gr.HTML(ARCH_HTML)
+            gr.Markdown("### AI가 ‘비슷한 게임’을 배우는 과정\n"
+                        "용어 없이 — 아래 애니메이션만 보면 학습 원리가 한눈에 들어옵니다. (자동 반복)")
+            gr.HTML(LEARN_ANIM)
+            with gr.Accordion("🔬 실제 학습 데이터로 보기 (자세히)", open=False):
+                gr.Markdown("위 비유가 **실제로** 일어난 스냅샷입니다. **슬라이더를 드래그**하면 "
+                            "에폭이 진행되며 진짜 게임 임베딩이 군집으로 뭉칩니다.")
+                ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1, label="에폭 — 드래그해서 학습 진행 보기")
+                train_plot = gr.Plot(value=epoch_fig(0))
+                ep_slider.change(epoch_fig, ep_slider, train_plot)
+                gr.Markdown("#### 🧩 모델 구조 (대조학습)")
+                gr.HTML(ARCH_HTML)
     gr.Markdown("<small>협업 임베딩(item2vec식 직접 학습) + 콘텐츠 임베딩 · 공식 Steam API 데이터 1,021만 리뷰</small>")
 
 
