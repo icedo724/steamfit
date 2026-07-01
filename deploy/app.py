@@ -68,8 +68,8 @@ def _ranks(s):
 # 학습 과정 데이터(에폭별 임베딩 스냅샷)
 TRAIN = json.loads((ROOT / "training_frames.json").read_text(encoding="utf-8"))
 N_EPOCHS = len(TRAIN["frames"]) - 1
-_gset = list(dict.fromkeys(TRAIN["genres"]))
-_gcolor = [GENRE_PAL[_gset.index(g) % len(GENRE_PAL)] for g in TRAIN["genres"]]
+_clusters = TRAIN.get("clusters") or [0] * len(TRAIN["names"])
+_gcolor = [GENRE_PAL[c % len(GENRE_PAL)] for c in _clusters]   # 색 = 협업 '이웃 그룹'(KMeans)
 
 _encoder = None
 
@@ -199,60 +199,102 @@ def _build_fig(liked_ap, rec_ap):
 
 FLOW_CSS = """
 <style>
-@keyframes fin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
-@keyframes dash{to{background-position:0 -28px}}
-.flow{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#3a332c;max-width:520px;margin:0 auto}
-.flow .st{opacity:0;animation:fin .5s ease forwards}
-.flow .box{background:#edede9;border:1px solid #c9b8a8;border-radius:12px;padding:11px 14px;text-align:center}
-.flow .hd{font-size:.82rem;font-weight:700;margin-bottom:4px;color:#3a332c}
-.flow .conn{width:3px;height:26px;margin:3px auto;border-radius:2px;
-  background:repeating-linear-gradient(#b08968 0 7px,transparent 7px 14px);background-size:3px 28px;animation:dash .7s linear infinite}
-.flow .chip{display:inline-block;background:#e3d5ca;border-radius:999px;padding:4px 10px;margin:3px;font-size:.78rem;color:#3a332c}
-.flow .chip.rec{background:#bc6c25;border:1px solid #a85a18;color:#fff;font-weight:700;opacity:0;animation:fin .4s forwards}
-.flow .vec{display:inline-flex;gap:3px;margin-top:6px;height:20px;align-items:flex-end}
-.flow .vec i{width:6px;border-radius:2px;background:#9c6644;animation:pulse 1.1s infinite}
-.flow .vec.i i{background:#6b705c}.flow .vec.q i{background:#bc6c25}
-.flow .lbl{font-size:.72rem;color:#6f6253;margin:2px 0}
-.flow .mix{display:flex;gap:8px}.flow .mix>div{flex:1}
-.flow .mut{color:#8a7d6c}
+@keyframes flIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes flFade{0%,100%{opacity:.3}50%{opacity:1}}
+.fl{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR',sans-serif;color:#3a332c;max-width:460px;margin:0 auto}
+.fl .map{background:#edede9;border:1px solid #d6ccc2;border-radius:12px;display:block;width:100%;height:auto}
+.fl .s{opacity:0;animation:flIn .55s ease forwards}
+.fl text{font-family:inherit}
+.fl .starlab{font-size:11px;fill:#5a4632;font-weight:700}
+.fl .qlab{font-size:11px;fill:#bc6c25;font-weight:800}
+.fl .cap{font-size:10px;fill:#8a7d6c}
+.fl .ring{animation:flFade 1.5s ease-in-out infinite}
+.fl ol.steps{list-style:none;padding:0;margin:8px 0 0}
+.fl ol.steps li{opacity:0;animation:flIn .5s ease forwards;font-size:.9rem;line-height:1.5;margin:3px 0}
+.fl ol.steps b{color:#bc6c25}
+.fl .recs{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+.fl .rchip{opacity:0;animation:flIn .45s ease forwards;background:#bc6c25;color:#fff;font-weight:700;border-radius:999px;padding:3px 11px;font-size:.78rem}
+.fl .mut{color:#8a7d6c;font-weight:400}
 </style>
 """
 
 
-def _bars(color_cls, seed):
-    import random
-    rng = random.Random(seed)
-    hs = [rng.randint(6, 20) for _ in range(10)]
-    bs = "".join(f'<i style="height:{h}px;animation-delay:{i*.05}s"></i>' for i, h in enumerate(hs))
-    return f'<div class="vec {color_cls}">{bs}</div>'
-
-
 def _flow_html(liked_names, intent, w_intent, rec_names):
+    """추론 과정 — 튜토리얼 스타일 '게임 지도' 애니메이션(자동 단계 재생, 배경은 일부 점만)."""
+    intent = (intent or "").strip()
+    has_l, has_i = bool(liked_names), bool(intent)
     wt, wi = round((1 - w_intent) * 100), round(w_intent * 100)
-    lc = "".join(f'<span class="chip">{n}</span>' for n in liked_names[:5]) or '<span class="mut">없음</span>'
-    rc = "".join(f'<span class="chip rec" style="animation-delay:{3.0+i*.18:.2f}s">{n}</span>'
-                 for i, n in enumerate(rec_names[:6]))
-    intent_box = (f'<div class="st box" style="animation-delay:1.4s"><div class="hd">✍️ 의도</div>'
-                  f'<div class="lbl">"{intent}"</div>{_bars("i", 2)}</div>') if intent.strip() else \
-                 '<div class="st box mut" style="animation-delay:1.4s">✍️ 의도 없음 (취향만)</div>'
-    return f"""{FLOW_CSS}<div class="flow">
-  <div class="st box" style="animation-delay:.1s"><div class="hd">🎮 즐긴 게임</div>{lc}</div>
-  <div class="st conn" style="animation-delay:.7s"></div>
-  <div class="st lbl" style="animation-delay:.7s">협업 임베딩 + 공동플레이 RRF 융합 ↓</div>
-  <div class="st box" style="animation-delay:.9s"><div class="hd">🧭 취향 벡터</div>{_bars("", 1)}</div>
-  <div class="st conn" style="animation-delay:1.3s"></div>
-  <div class="mix">
-    <div class="st box" style="animation-delay:.9s"><div class="hd">위 취향</div></div>
-    {intent_box}
-  </div>
-  <div class="st conn" style="animation-delay:2.0s"></div>
-  <div class="st lbl" style="animation-delay:2.0s">⊕ 가중 결합 (취향 {wt}% · 의도 {wi}%) ↓</div>
-  <div class="st box" style="animation-delay:2.2s"><div class="hd">🎯 쿼리 벡터</div>{_bars("q", 3)}</div>
-  <div class="st conn" style="animation-delay:2.6s"></div>
-  <div class="st lbl" style="animation-delay:2.6s">🔍 12,000개 게임에서 벡터 검색 ↓</div>
-  <div class="st box" style="animation-delay:2.9s"><div class="hd">✅ 추천</div><div>{rc}</div></div>
-</div>"""
+
+    def e(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    itxt = (intent[:16] + "…") if len(intent) > 16 else intent
+
+    # 배경 '게임 지도' — 전체가 아니라 일부 점만
+    bgpts = [(205, 45), (255, 172), (180, 192), (392, 150), (120, 34), (60, 198),
+             (416, 55), (345, 182), (270, 60), (150, 104), (232, 118)]
+    bg = "".join(f'<circle cx="{x}" cy="{y}" r="4" fill="#c9b8a8"/>' for x, y in bgpts)
+
+    # 즐긴 게임(별) + 취향 자리
+    O = (155, 130)
+    star_svg = ""
+    if has_l:
+        sp = [(95, 86), (82, 150)]
+        for i, nm in enumerate(liked_names[:2]):
+            x, y = sp[i]
+            star_svg += (f'<g class="s" style="animation-delay:{0.55 + i * 0.2}s">'
+                         f'<text x="{x + 11}" y="{y + 4}" class="starlab">⭐ {e(nm)}</text>'
+                         f'<circle cx="{x}" cy="{y}" r="6" fill="#5a4632"/></g>')
+        if len(liked_names) > 2:
+            star_svg += f'<text x="95" y="178" class="cap">+ 외 {len(liked_names) - 2}개</text>'
+        star_svg += ('<g class="s" style="animation-delay:1.2s">'
+                     f'<circle cx="{O[0]}" cy="{O[1]}" r="9" fill="none" stroke="#5a4632" stroke-width="2.5"/>'
+                     f'<text x="{O[0]}" y="{O[1] + 22}" class="cap" text-anchor="middle">취향 자리</text></g>')
+    else:
+        O = (100, 116)
+        star_svg = (f'<g class="s" style="animation-delay:0.55s">'
+                    f'<text x="{O[0]}" y="{O[1]}" class="starlab" text-anchor="middle">✍️ 의도</text></g>')
+
+    # 화살표 → 쿼리 지점 + 검색 링
+    Q = (300, 95)
+    ql = f'✍️ &ldquo;{e(itxt)}&rdquo; 지점' if has_i else '🧭 취향 지점'
+    arrow = (f'<g class="s" style="animation-delay:1.75s">'
+             f'<line x1="{O[0] + 14}" y1="{O[1]}" x2="{Q[0] - 16}" y2="{Q[1]}" stroke="#bc6c25" stroke-width="2.5" stroke-dasharray="5 4"/>'
+             f'<path d="M{Q[0] - 14},{Q[1]} l-10,-5 l3,5 l-3,5 z" fill="#bc6c25"/>'
+             f'<circle class="ring" cx="{Q[0]}" cy="{Q[1]}" r="26" fill="none" stroke="#bc6c25" stroke-width="1.5"/>'
+             f'<circle cx="{Q[0]}" cy="{Q[1]}" r="7" fill="#bc6c25"/>'
+             f'<text x="{Q[0]}" y="{Q[1] - 30}" class="qlab" text-anchor="middle">{ql}</text></g>')
+
+    # 추천 점(쿼리 근처)
+    rp = [(332, 70), (322, 124), (356, 104)]
+    recdots = ('<g class="s" style="animation-delay:2.3s">'
+               + "".join(f'<circle cx="{x}" cy="{y}" r="7" fill="#606c38" stroke="#fff" stroke-width="1.5"/>'
+                         for x, y in rp) + '</g>')
+
+    svg = (f'<svg class="map" viewBox="0 0 440 210" role="img" xmlns="http://www.w3.org/2000/svg">'
+           f'<title>추천이 만들어지는 과정</title>'
+           f'<g class="s" style="animation-delay:.15s">{bg}</g>{star_svg}{arrow}{recdots}</svg>')
+
+    # 단계 설명(순차 등장)
+    steps = ["🎮 <b>즐긴 게임</b>을 &lsquo;게임 지도&rsquo;에 콕 찍어요" if has_l
+             else "✍️ <b>의도</b>를 &lsquo;게임 지도&rsquo;의 한 지점으로 바꿔요"]
+    if has_l:
+        steps.append("🧭 그 위치들의 평균 = <b>당신의 취향 자리</b>")
+    if has_l and has_i:
+        steps.append(f"✍️ 의도 &lsquo;<b>{e(itxt)}</b>&rsquo;가 취향을 그쪽으로 옮겨요 "
+                     f"<span class='mut'>(취향 {wt}%·의도 {wi}%)</span>")
+    elif has_l and not has_i:
+        steps.append("취향 자리 <b>그대로</b> 검색해요")
+    steps.append("🎯 그 자리 <b>근처의 게임</b>을 골라 추천!")
+    steps_html = "".join(f'<li style="animation-delay:{0.7 + i * 0.5:.2f}s">{s}</li>'
+                         for i, s in enumerate(steps))
+
+    rd = 0.7 + len(steps) * 0.5
+    recs = "".join(f'<span class="rchip" style="animation-delay:{rd + i * 0.12:.2f}s">{e(n)}</span>'
+                   for i, n in enumerate(rec_names[:5]))
+
+    return (f'{FLOW_CSS}<div class="fl">{svg}'
+            f'<ol class="steps">{steps_html}</ol>'
+            f'<div class="recs">{recs}</div></div>')
 
 
 # 한국어 게임 외래어 → 영어 Steam 태그/용어 사전.
@@ -368,17 +410,19 @@ def recommend(liked, intent, w_intent, topn):
 
 
 def epoch_fig(ep):
-    """학습 과정 — 슬라이더가 가리키는 에폭의 임베딩 산점도 (모바일 친화: 슬라이더 드래그)."""
+    """학습 진행 슬라이더 — 선별 스냅샷의 UMAP 궤적(게임이 '이웃'으로 뭉치는 실제 과정)."""
     ep = int(ep)
     f = TRAIN["frames"][ep]
     bnd = TRAIN["bounds"]
-    loss = TRAIN["losses"][ep - 1] if ep > 0 else "—"
+    loss = TRAIN["losses"][ep] if ep < len(TRAIN["losses"]) else None
+    sub = "🎲 랜덤 초기화 (학습 전)" if loss is None else f"대조손실 {loss}"
     fig = go.Figure(go.Scattergl(
         x=[p[0] for p in f], y=[p[1] for p in f], mode="markers",
-        marker=dict(size=5, color=_gcolor), text=TRAIN["names"], hoverinfo="text", showlegend=False))
+        marker=dict(size=6, color=_gcolor, line=dict(width=0)),
+        text=TRAIN["names"], hoverinfo="text", showlegend=False))
     fig.update_layout(template="plotly_white", paper_bgcolor=BG, plot_bgcolor=PARCH, height=440,
                       margin=dict(l=10, r=10, t=40, b=10),
-                      title=dict(text=f"에폭 {ep} · 대조손실 {loss} — 게임 임베딩 군집화 (점=게임, 색=장르)",
+                      title=dict(text=f"학습 진행 {ep}/{N_EPOCHS} · {sub} — 게임들이 '이웃'으로 뭉치는 실제 궤적 (색=이웃 그룹)",
                                  font=dict(color=TEXT, size=12)),
                       xaxis=dict(visible=False, range=[bnd["xlo"], bnd["xhi"]]),
                       yaxis=dict(visible=False, range=[bnd["ylo"], bnd["yhi"]]))
@@ -534,9 +578,11 @@ with gr.Blocks(title="SteamFit", theme=_theme(), css=GLOBAL_CSS) as demo:
                         "용어 없이 — 아래 애니메이션만 보면 학습 원리가 한눈에 들어옵니다. (자동 반복)")
             gr.HTML(LEARN_ANIM)
             with gr.Accordion("🔬 실제 학습 데이터로 보기 (자세히)", open=False):
-                gr.Markdown("위 비유가 **실제로** 일어난 스냅샷입니다. **슬라이더를 드래그**하면 "
-                            "에폭이 진행되며 진짜 게임 임베딩이 군집으로 뭉칩니다.")
-                ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1, label="에폭 — 드래그해서 학습 진행 보기")
+                gr.Markdown("위 비유가 **실제로** 일어난 궤적입니다. **슬라이더를 왼→오른쪽으로 드래그**하면 "
+                            "랜덤으로 흩어진 900개 게임이 학습을 거치며 **‘이웃 그룹’(색)으로 뭉치는 실제 과정**이 보입니다. "
+                            "(협업 임베딩을 UMAP으로 투영 · 점 위에 마우스=게임명)")
+                ep_slider = gr.Slider(0, N_EPOCHS, value=0, step=1,
+                                      label="학습 진행 — 드래그 (0=랜덤 초기 → 끝=군집 형성)")
                 train_plot = gr.Plot(value=epoch_fig(0))
                 ep_slider.change(epoch_fig, ep_slider, train_plot)
                 gr.Markdown("#### 🧩 모델 구조 (대조학습)")
